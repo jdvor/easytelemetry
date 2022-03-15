@@ -1,0 +1,11 @@
+# telemetry
+
+TBD: library long description
+
+## Conventions
+
+AZURE_FUNCTIONS_ENVIRONMENT, {AppName}_ENVIRONMENT, ENVIRONMENT, "prod"
+
+{AppName}_APP_VERSION, APP_VERSION, "0.0.0.0"
+
+APPLICATIONINSIGHTS_CONNECTION_STRING

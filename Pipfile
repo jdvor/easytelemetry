@@ -1,0 +1,37 @@
+[packages]
+atomics = "*"
+orjson = "*"
+requests = "*"
+
+[dev-packages]
+bandit = "*"
+black = "*"
+coverage = "*"
+flake8 = "*"
+flake8-commas = "*"
+flake8-length = "*"
+flake8-quotes = "*"
+flake8-functions = "*"
+flake8-pytest-style = "*"
+isort = "*"
+mypy = "*"
+psutil = "*"
+pyperf = "*"
+pyproject-flake8 = "*"
+pytest = "*"
+pytest-cov = "*"
+pytest-mock = "*"
+python-dotenv = "*"
+twine = "*"
+
+[scripts]
+clean = "python ./project/clean.py"
+format = "python ./project/format.py"
+quality = "python ./project/quality.py"
+tests = "python ./project/tests.py"
+sdist = "python ./project/sdist.py src/easytelemetry/"
+publish = "python ./project/publish.py"
+req = "pip freeze"
+
+[pipenv]
+allow_prereleases = false

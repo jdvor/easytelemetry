@@ -1,0 +1,92 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
+[tool.black]
+line-length = 80
+target-version = ["py38"]
+include = '\.py$'
+exclude = '''
+/(
+  \.git
+  |__pycache__
+  |\.mypy_cache
+)/
+'''
+
+# https://pycqa.github.io/isort/docs/configuration/config_files.html
+[tool.isort]
+profile = "black"
+line_length = 80
+include_trailing_comma = true
+
+# https://docs.pytest.org/en/latest/reference/customize.html#pyproject-toml
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--strict -p no:warnings"
+testpaths = [
+  "tests",
+]
+markers = [
+  "slow: Slow tests",
+  "integration: Dependent on some external source and may not suitable to run without setup & supervision",
+]
+
+# https://mypy.readthedocs.io/en/latest/config_file.html#using-a-pyproject-toml-file
+[tool.mypy]
+python_version = "3.8"
+follow_imports = "silent"
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+no_implicit_reexport = true
+ignore_missing_imports = true
+show_error_codes = true
+
+# https://flake8.pycqa.org/en/latest/user/configuration.html
+[tool.flake8]
+max-line-length = 80
+max-doc-length = 80
+max-complexity = 10
+max-function-length = 100  # flake8-functions
+max-parameters-amount = 6  # flake8-functions
+max-returns-amount = 5     # flake8-functions
+inline-quotes = "single"   # flake8-quotes
+ignore = [
+  "D100",  # Missing docstring in public module
+  "D101",  # Missing docstring in public class
+  "D102",  # Missing docstring in public method
+  "D103",  # Missing docstring in public function
+  "D104",  # Missing docstring in public package
+  "D105",  # Missing docstring in magic method
+  "D106",  # Missing docstring in public nested class
+  "D107",  # Missing docstring in __init__
+  "D205",  # 1 blank line required between summary line and description
+  "D400",  # First line should end with a period
+  "E402",  # Module level import not at top of file
+  "E501",  # Line too long [recommended by flake8-length for urls]
+  "W503",  # Line break before binary operator [black collision]
+  "W505",  # doc line too long [recommended by flake8-length for urls]
+  "C813",  # Missing trailing comma in Python 3 [black collision]
+]
+exclude = [
+  ".git",
+  "__pycache__",
+  "dist",
+]
+require-plugins = [
+  "flake8-commas",
+  "flake8-length",
+  "flake8-quotes",
+  "flake8-functions",
+  "flake8-pytest-style",
+]
+
+[tool.bandit]
+skips = [
+  "B101",  # assert
+  "B104",  # 0.0.0.0 binding
+]
