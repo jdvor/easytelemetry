@@ -24,10 +24,12 @@ SAFE_STR_REGEX = re.compile(f"^[a-zA-Z][\\w]{{0,{MAX_KEY_LENGTH - 1}}}$")
 
 
 def is_safe_key(s: str) -> bool:
+    """Determine if the key can be used as metric or logger name."""
     return True if SAFE_STR_REGEX.match(s) else False
 
 
 def sanitize_value(s: str) -> str:
+    """Make sure the string cannot exceed allowed length."""
     return s[:MAX_VALUE_LENGTH] if s and len(s) > MAX_VALUE_LENGTH else s
 
 
@@ -637,7 +639,7 @@ class Envelope:
     # The application's instrumentation key.
     # The key is typically represented as a GUID, but there are cases
     # when it is not a guid. No code should rely on iKey being a GUID.
-    # Instrumentation key is case insensitive.
+    # Instrumentation key is case-insensitive.
     iKey: str = ""  # noqa: N815
 
     # Envelope version. For internal use only. By assigning this the default,
@@ -653,7 +655,7 @@ class Envelope:
 
     # A collection of values bit-packed to represent
     # how the event was processed.
-    # Currently represents whether IP address needs to be stripped out
+    # Currently, represents whether IP address needs to be stripped out
     # from event (set 0x200000) or should be preserved.
     flags: Optional[int] = None
 
@@ -717,4 +719,3 @@ def deserialize(data: bytes) -> Union[ApiResponseBody, str, None]:
         )
     except RuntimeError:
         return data.decode("utf-8")
-

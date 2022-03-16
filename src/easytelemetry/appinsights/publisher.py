@@ -1,3 +1,8 @@
+"""
+This module contains types & functions dealing with publishing
+collected telemetry data.
+"""
+
 from __future__ import annotations
 import gzip
 import concurrent.futures as cf
@@ -33,6 +38,10 @@ class PublishResult:
 
 
 class Publisher(Protocol):
+    """
+    Responsible for consuming queue and gracefully terminating when requested.
+    """
+
     def consume(self, source: queue.Queue[p.Envelope]) -> None:
         pass
 
@@ -41,6 +50,8 @@ class Publisher(Protocol):
 
 
 class ErrorHandler(Protocol):
+    """Deals with publishing errors."""
+
     def on_failure(self,
                    batch: Sequence[p.Envelope],
                    result: PublishResult) -> None:

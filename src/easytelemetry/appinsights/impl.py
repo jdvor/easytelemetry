@@ -27,6 +27,7 @@ def build(
     app_name: str,
     options: Optional[Options] = None,
 ) -> AppInsightsTelemetry:
+    """Create telemetry instance (factory method)."""
     global_props = {
         "app": app_name,
         "host": get_host_name(),
