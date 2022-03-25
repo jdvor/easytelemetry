@@ -169,11 +169,15 @@ def send_batch(batch: Sequence[p.Envelope],
     if 0 < gzip_treshold < len(body):
         body = gzip.compress(body, compresslevel=GZIP_COMPRESS_LEVEL)
         headers = {
-            'Content-Type': 'application/json',
             'Content-Encoding': 'gzip',
+            'Content-Type': 'application/json',
+            'User-Agent': 'easytelemetry/2.0.2 (Windows)',
         }
     else:
-        headers = {'Content-Type': 'application/json'}
+        headers = {
+            'Content-Type': 'application/json',
+            'User-Agent': 'easytelemetry/2.0.2 (Windows)',
+        }
 
     retry_allowed = max_attempts > 1 and delay_between_attempts_secs > 0
     if retry_allowed:

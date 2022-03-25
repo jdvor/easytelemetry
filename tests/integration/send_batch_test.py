@@ -157,4 +157,5 @@ def enrich_envelope(e: p.Envelope, ikey: str) -> None:
         p.TagKey.OPERATION_PARENT_ID: '0d96cb1c-38d2-41ed-9ffd-801c0862049c',
         p.TagKey.CLOUD_ROLE_INSTANCE: 'LIEN-02',
         p.TagKey.LOCATION_IP: '94.230.174.81',
+        p.TagKey.APP_VER: '1.0.1',
     }

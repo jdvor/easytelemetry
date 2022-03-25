@@ -102,11 +102,12 @@ class EventData:
     # Collection of custom measurements.
     measurements: Optional[Dict[str, float]] = None
 
-    def to_envelope(self) -> Envelope:
+    def to_envelope(self, tags: Optional[Dict[str, str]] = None) -> Envelope:
         return Envelope(
             name=Envelope.EVENT_NAME,
             time=datetime.utcnow(),
             data=Data(self, Envelope.EVENT_BASE_TYPE),
+            tags=tags,
         )
 
 
@@ -181,7 +182,7 @@ class ExceptionData:
     severityLevel: SeverityLevel = SeverityLevel.INFORMATION  # noqa: N815
 
     # Identifier of where the exception was thrown in code.
-    # Used for exceptions grouping. Typically a combination of exception type
+    # Used for exceptions grouping. Typically, a combination of exception type
     # and a function from the call stack.
     problemId: Optional[str] = None  # noqa: N815
 
@@ -191,11 +192,12 @@ class ExceptionData:
     # Collection of custom measurements.
     measurements: Optional[Dict[str, float]] = None
 
-    def to_envelope(self) -> Envelope:
+    def to_envelope(self, tags: Optional[Dict[str, str]] = None) -> Envelope:
         return Envelope(
             name=Envelope.EXCEPTION_NAME,
             time=datetime.utcnow(),
             data=Data(self, Envelope.EXCEPTION_BASE_TYPE),
+            tags=tags,
         )
 
     @staticmethod
@@ -284,11 +286,12 @@ class MessageData:
     # Collection of custom measurements.
     measurements: Optional[Dict[str, float]] = None
 
-    def to_envelope(self) -> Envelope:
+    def to_envelope(self, tags: Optional[Dict[str, str]] = None) -> Envelope:
         return Envelope(
             name=Envelope.TRACE_NAME,
             time=datetime.utcnow(),
             data=Data(self, Envelope.TRACE_BASE_TYPE),
+            tags=tags,
         )
 
 
@@ -310,11 +313,12 @@ class MetricData:
     # Collection of custom properties.
     properties: Optional[Dict[str, str]] = None
 
-    def to_envelope(self) -> Envelope:
+    def to_envelope(self, tags: Optional[Dict[str, str]] = None) -> Envelope:
         return Envelope(
             name=Envelope.METRIC_NAME,
             time=datetime.utcnow(),
             data=Data(self, Envelope.METRIC_BASE_TYPE),
+            tags=tags,
         )
 
     @staticmethod
@@ -376,11 +380,12 @@ class RemoteDependencyData:
     # Collection of custom measurements.
     measurements: Optional[Dict[str, float]] = None
 
-    def to_envelope(self) -> Envelope:
+    def to_envelope(self, tags: Optional[Dict[str, str]] = None) -> Envelope:
         return Envelope(
             name=Envelope.DEPENDENCY_NAME,
             time=datetime.utcnow(),
             data=Data(self, Envelope.DEPENDENCY_BASE_TYPE),
+            tags=tags,
         )
 
 
@@ -429,11 +434,12 @@ class RequestData:
     # Collection of custom measurements.
     measurements: Optional[Dict[str, float]] = None
 
-    def to_envelope(self) -> Envelope:
+    def to_envelope(self, tags: Optional[Dict[str, str]] = None) -> Envelope:
         return Envelope(
             name=Envelope.REQUEST_NAME,
             time=datetime.utcnow(),
             data=Data(self, Envelope.REQUEST_BASE_TYPE),
+            tags=tags,
         )
 
 
@@ -543,12 +549,12 @@ class TagKey:
     OPERATION_PARENT_ID = "ai.operation.parentId"
 
     # Name of synthetic source.
-    # Some telemetry from the application may represent a synthetic traffic.
-    # It may be web crawler indexing the web site, site availability tests
+    # Some telemetry from the application may represent synthetic traffic.
+    # It may be web crawler indexing the website, site availability tests
     # or traces from diagnostic libraries like Application Insights SDK itself.
     OPERATION_SOURCE = "ai.operation.syntheticSource"
 
-    # The correlation vector is a light weight vector clock
+    # The correlation vector is a lightweight vector clock
     # which can be used to identify and order related events
     # across clients and services.
     OPERATION_CORRELATION_VECTOR = "ai.operation.correlationVector"

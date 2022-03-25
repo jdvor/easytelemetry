@@ -4,6 +4,7 @@ import logging
 import os
 import platform
 import re
+import socket
 import time
 from abc import ABC, abstractmethod
 from enum import IntEnum
@@ -204,6 +205,13 @@ def check_all(items: Iterable[T], condition: Callable[[T], bool]) -> bool:
 def get_host_name() -> str:
     """Try to determine current host name."""
     return os.environ.get("COMPUTERNAME") or platform.node() or "unknown"
+
+
+def get_host_ip() -> str:
+    try:
+        return socket.gethostbyname(socket.gethostname())
+    except RuntimeError:
+        return ''
 
 
 def get_environment_name(app_name: str) -> str:

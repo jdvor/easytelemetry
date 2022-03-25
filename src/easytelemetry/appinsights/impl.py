@@ -20,6 +20,7 @@ from easytelemetry.interface import (
     get_app_version,
     get_environment_name,
     get_host_name,
+    get_host_ip,
 )
 
 
@@ -30,12 +31,15 @@ def build(
     """Create telemetry instance (factory method)."""
     global_props = {
         "app": app_name,
-        "host": get_host_name(),
         "env": get_environment_name(app_name),
-        "ver": get_app_version(app_name),
+    }
+    tags = {
+        p.TagKey.CLOUD_ROLE_INSTANCE: get_host_name(),
+        p.TagKey.LOCATION_IP: get_host_ip(),
+        p.TagKey.APP_VER: get_app_version(app_name),
     }
     opts = options or Options.from_env(app_name)
-    return AppInsightsTelemetry(app_name, global_props, opts)
+    return AppInsightsTelemetry(app_name, global_props, tags, opts)
 
 
 @dataclass(frozen=True)
@@ -104,10 +108,12 @@ class AppInsightsTelemetry(Telemetry):
         self,
         name: str,
         global_props: Dict[str, Any],
+        tags: Dict[str, str],
         options: Options
     ):
         self._name = name
         self._global_props = global_props
+        self._tags = tags
         self._options = options
         self._queue: Queue = Queue(maxsize=options.queue_maxsize)
         self._rootlgr = AppInsightsLogger(
