@@ -12,7 +12,7 @@ import traceback
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import orjson
 
@@ -213,7 +213,7 @@ class ExceptionData:
         stack = ExceptionData._parsed_stack(ex)
         details = ExceptionDetails(ex_name, str(ex), stack)
         problem_id = ExceptionData._problem_id(
-            ex_name, stack[0].fileName, stack[0].line
+            ex_name, stack[0].fileName, stack[0].line,
         )
         return ExceptionData(
             [details],
@@ -230,6 +230,7 @@ class ExceptionData:
         level = 1
         prev_path = ""
         prev_file = ""
+        frm: traceback.FrameSummary
         for frm in reversed(frames):  # inner to outer
             if level == 1:
                 filename = frm.filename
@@ -242,9 +243,10 @@ class ExceptionData:
                     filename = frm.filename
                     prev_path = frm.filename
                     prev_file = os.path.basename(frm.filename)
+            method = frm.line if frm.line else ""
             stack_frame = StackFrame(
-                level,
-                frm.line,
+                level=level,
+                method=method,
                 fileName=filename,
                 line=frm.lineno,
             )
@@ -253,7 +255,11 @@ class ExceptionData:
         return parsed_stack
 
     @staticmethod
-    def _problem_id(exception_name: str, file_path: str, line: int) -> str:
+    def _problem_id(
+        exception_name: str,
+        file_path: Optional[str],
+        line: Optional[int],
+    ) -> str:
         alg = hashlib.md5()  # nosec
         bts = f"{file_path}:{line}".encode("utf-8")
         alg.update(bts)
@@ -323,7 +329,7 @@ class MetricData:
 
     @staticmethod
     def create(
-        name: str, value: float, properties: Optional[Dict[str, str]] = None
+        name: str, value: float, properties: Optional[Dict[str, str]] = None,
     ) -> MetricData:
         point = DataPoint(name, value)
         return MetricData([point], properties=properties)
@@ -689,7 +695,6 @@ class ApiResponseBody:
 
 
 def serialize(data: Union[Sequence[Envelope], Envelope]) -> bytes:
-
     def convert(obj: Any) -> str:
         if isinstance(obj, timedelta):
             return str(obj)
@@ -701,8 +706,7 @@ def serialize(data: Union[Sequence[Envelope], Envelope]) -> bytes:
 
 
 def deserialize(data: bytes) -> Union[ApiResponseBody, str, None]:
-
-    def errors(node) -> List[ApiResponseError]:
+    def errors(node: Any) -> List[ApiResponseError]:
         result = []
         if "errors" in node:
             for e in node["errors"]:
@@ -721,7 +725,7 @@ def deserialize(data: bytes) -> Union[ApiResponseBody, str, None]:
         return ApiResponseBody(
             itemsReceived=obj["itemsReceived"],
             itemsAccepted=obj["itemsAccepted"],
-            errors=errors(obj)
+            errors=errors(obj),
         )
     except RuntimeError:
         return data.decode("utf-8")

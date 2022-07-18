@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import pytest
-from easytelemetry.appinsights.impl import Options
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path='.env')
+from easytelemetry.appinsights.impl import Options
+
+load_dotenv(dotenv_path=".env")
 
 
 @pytest.fixture()
 def options() -> Options:
-    return Options.from_env('intgtests')
+    return Options.from_env("intgtests")
 
 
 @pytest.fixture()

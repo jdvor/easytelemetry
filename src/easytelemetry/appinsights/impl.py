@@ -19,8 +19,8 @@ from easytelemetry.interface import (
     Telemetry,
     get_app_version,
     get_environment_name,
-    get_host_name,
     get_host_ip,
+    get_host_name,
 )
 
 
@@ -46,38 +46,67 @@ def build(
 class Options:
     instrumentation_key: str
     ingestion_url: str
-    local_storage_path: str
+    use_local_storage: bool = False
+    local_storage_path: Optional[str] = None
     min_level: Level = Level.INFO
     queue_maxsize: int = 10000
     batch_maxsize: int = 100
 
     DEFAULT_INGESTION_URL = "https://dc.services.visualstudio.com/v2/track"
-    DEFAULT_ENV_VAR = "APPLICATIONINSIGHTS_CONNECTION_STRING"
+    CONNECTION_STRING_ENV_VAR = "APPLICATIONINSIGHTS_CONNECTION_STRING"
+    USE_LOCAL_STORAGE_ENV_VAR = "APPLICATIONINSIGHTS_USE_LOCAL_STORAGE"
+
+    @staticmethod
+    def _env_var(app_name: str, var_name: str) -> Optional[str]:
+        prefixed_name = f"{app_name.upper()}_{var_name}"
+        return os.environ.get(prefixed_name) or os.environ.get(var_name)
 
     @staticmethod
     def from_env(app_name: str) -> Options:
-        env_var = f"{app_name.upper()}_{Options.DEFAULT_ENV_VAR}"
-        cs = os.environ.get(env_var) or os.environ.get(Options.DEFAULT_ENV_VAR)
-        return Options.from_connection_string(app_name, cs)
+        conn_str = Options._env_var(app_name, Options.CONNECTION_STRING_ENV_VAR)
+        local = Options._env_var(app_name, Options.USE_LOCAL_STORAGE_ENV_VAR)
+        return Options.from_connection_string(app_name, conn_str, bool(local))
 
     @staticmethod
-    def from_connection_string(app_name: str, cs: str) -> Options:
-        if not cs:
+    def from_connection_string(
+        app_name: str,
+        conn_str: Optional[str],
+        use_local: Union[bool, str] = False,
+    ) -> Options:
+        if not conn_str:
             raise ValueError("invalid connection string")
-        pattern = r"^(InstrumentationKey\s*=\s*)?" + \
-                  r"(?P<key>[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12})" + \
-                  r"(\s*;\s*IngestionEndpoint\s*=\s*(?P<url>https://\S+))?$"
-        m = re.match(pattern, cs.strip(), re.IGNORECASE)
+
+        pattern = (
+            r"^(InstrumentationKey\s*=\s*)?"
+            + r"(?P<key>[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12})"
+            + r"(\s*;\s*IngestionEndpoint\s*=\s*(?P<url>https://\S+))?$"
+        )
+        m = re.match(pattern, conn_str.strip(), re.IGNORECASE)
         if not m:
             raise ValueError("invalid connection string")
+
         key = m.group("key")
         url = m.group("url")
+
         if not url:
             url = Options.DEFAULT_INGESTION_URL
         if not url.endswith("/v2/track"):
             url = posixpath.join(url, "v2/track")
-        local_storage_path = Options._ensure_local_storage(app_name)
-        return Options(key, url, local_storage_path)
+
+        if isinstance(use_local, bool):
+            if use_local:
+                local_storage_path = Options._ensure_local_storage(app_name)
+            else:
+                local_storage_path = None
+        else:
+            if use_local:
+                local_storage_path = use_local
+                use_local = True
+            else:
+                local_storage_path = None
+                use_local = False
+
+        return Options(key, url, use_local, local_storage_path)
 
     @staticmethod
     def _ensure_local_storage(app_name: str) -> str:
@@ -109,7 +138,7 @@ class AppInsightsTelemetry(Telemetry):
         name: str,
         global_props: Dict[str, Any],
         tags: Dict[str, str],
-        options: Options
+        options: Options,
     ):
         self._name = name
         self._global_props = global_props
@@ -291,7 +320,7 @@ def _merge_extra(
     return {"custom_dimensions": parent_extra}
 
 
-def _convert_level(level: Level) -> p.SeverityLevel:
+def _convert_level(level: Level) -> p.SeverityLevel:  # noqa: CFQ004
     if level == level.DEBUG:
         return p.SeverityLevel.VERBOSE
     if level == level.INFO:

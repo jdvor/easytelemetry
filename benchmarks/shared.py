@@ -1,4 +1,3 @@
-import atomics
 import cProfile
 import os
 import pstats
@@ -10,12 +9,14 @@ from functools import partial, wraps
 from pstats import SortKey
 from typing import Optional
 
+import atomics
+
 _seq = atomics.atomic(8, atomics.INT)
 
 
 def wire_up_src_dir() -> None:
     root = os.path.abspath(os.path.dirname(__file__))
-    src = os.path.normpath(os.path.join(root, '../src'))
+    src = os.path.normpath(os.path.join(root, "../src"))
     if os.path.isdir(src) and src not in sys.path:
         sys.path.append(src)
 
@@ -35,7 +36,7 @@ def _cpu_profile(
     Decorate a function to print CPU time costs
     to either stdout or a file.
     """
-    filename = f'.prof/{fn.__name__}' if filepath == 'auto' else filepath
+    filename = f".prof/{fn.__name__}" if filepath == "auto" else filepath
 
     @wraps
     def inner(*args, **kwargs):
@@ -55,7 +56,7 @@ def _cpu_profile(
 
 
 print_cpu = partial(_cpu_profile)
-save_cpu = partial(_cpu_profile, filepath='auto')
+save_cpu = partial(_cpu_profile, filepath="auto")
 
 
 def sample_envelope() -> p.Envelope:
@@ -63,21 +64,21 @@ def sample_envelope() -> p.Envelope:
     user_id = random.randint(100, 110)
     alpha = str(random.randint(1, 5))
     envelope = p.RemoteDependencyData(
-        name='user_posts',
+        name="user_posts",
         duration=timedelta(milliseconds=ms),
         success=True,
-        id=f'posts/user/{user_id}',
-        data=r'SELECT * FROM posts WHERE user = @user_id',
-        target='datalake1.example.com',
-        type='SQL',
-        properties={'alpha': alpha},
+        id=f"posts/user/{user_id}",
+        data=r"SELECT * FROM posts WHERE user = @user_id",
+        target="datalake1.example.com",
+        type="SQL",
+        properties={"alpha": alpha},
     ).to_envelope()
-    envelope.iKey = '0d96cb1c-38d2-41ed-9ffd-801c0862049c'
+    envelope.iKey = "0d96cb1c-38d2-41ed-9ffd-801c0862049c"
     envelope.seq = str(_seq.fetch_inc())
     envelope.tags = {
         p.TagKey.OPERATION_ID: str(uuid.uuid4()),
         p.TagKey.OPERATION_PARENT_ID: str(uuid.uuid4()),
-        p.TagKey.CLOUD_ROLE_INSTANCE: 'LIEN-02',
-        p.TagKey.LOCATION_IP: '94.230.174.81',
+        p.TagKey.CLOUD_ROLE_INSTANCE: "LIEN-02",
+        p.TagKey.LOCATION_IP: "94.230.174.81",
     }
     return envelope

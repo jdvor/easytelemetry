@@ -10,14 +10,14 @@ FAIL_UNDER_COVERAGE = 60
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    '--github',
-    help='execute within Github Actions',
-    action='store_true',
+    "--github",
+    help="execute within Github Actions",
+    action="store_true",
 )
 parser.add_argument(
-    '--integration',
-    help='include integration tests',
-    action='store_true',
+    "--integration",
+    help="include integration tests",
+    action="store_true",
 )
 args = parser.parse_args()
 
@@ -27,17 +27,17 @@ if src_dir not in sys.path:
 
 tests_dir = get_tests_dir() if args.integration else get_unit_tests_dir()
 cmd_args = [
-    '--rootdir=' + tests_dir,
-    '--disable-warnings',
-    '--no-header',
-    '--cov=' + src_dir,
-    '--no-cov-on-fail',
+    "--rootdir=" + tests_dir,
+    "--disable-warnings",
+    "--no-header",
+    "--cov=" + src_dir,
+    "--no-cov-on-fail",
 ]
 
 if args.github:
-    cmd_args.append([f'--cov-fail-under={FAIL_UNDER_COVERAGE}', '--color=no'])
+    cmd_args.append([f"--cov-fail-under={FAIL_UNDER_COVERAGE}", "--color=no"])
 else:
-    cmd_args.append(['--color=yes', '--verbose'])
+    cmd_args.append(["--color=yes", "--verbose"])
 
 result = pytest.main(cmd_args)
 sys.exit(result)

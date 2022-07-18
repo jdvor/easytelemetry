@@ -211,7 +211,7 @@ def get_host_ip() -> str:
     try:
         return socket.gethostbyname(socket.gethostname())
     except RuntimeError:
-        return ''
+        return ""
 
 
 def get_environment_name(app_name: str) -> str:

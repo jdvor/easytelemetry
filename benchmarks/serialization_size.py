@@ -1,5 +1,7 @@
 import gzip
+
 from shared import sample_envelope
+
 from easytelemetry.appinsights.protocol import serialize
 
 
@@ -13,5 +15,7 @@ for i in range(1, 7):
     original = serialize(envelopes)
     compressed = compress(original)
     pct = round(100 * len(compressed) / len(original), 1)
-    print(f'n: {len(envelopes)}, original: {len(original)} B' +
-          f', compressed: {pct}% ({len(compressed)} B)')
+    print(
+        f"n: {len(envelopes)}, original: {len(original)} B"
+        + f", compressed: {pct}% ({len(compressed)} B)"
+    )

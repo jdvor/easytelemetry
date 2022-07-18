@@ -4,7 +4,7 @@ orjson = "*"
 requests = "*"
 
 [dev-packages]
-bandit = "*"
+bandit = {version="*", extras=["toml"]}
 black = "*"
 coverage = "*"
 flake8 = "*"

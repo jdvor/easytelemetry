@@ -4,14 +4,15 @@ collected telemetry data.
 """
 
 from __future__ import annotations
-import gzip
+
 import concurrent.futures as cf
+import gzip
 import logging
 import os
 import queue
 import time
 from dataclasses import dataclass
-from typing import Dict, Optional, Union, Sequence, List, Generator, Protocol
+from typing import Dict, Generator, List, Optional, Protocol, Sequence, Union
 
 import atomics
 import requests
@@ -31,6 +32,7 @@ RETRYABLE_HTTP_STATUSES = [0, 500, 502]
 @dataclass
 class PublishResult:
     """Describes the result of batch publish attempt."""
+
     success: bool
     attempt: int = 0
     status_code: int = 200
@@ -52,9 +54,9 @@ class Publisher(Protocol):
 class ErrorHandler(Protocol):
     """Deals with publishing errors."""
 
-    def on_failure(self,
-                   batch: Sequence[p.Envelope],
-                   result: PublishResult) -> None:
+    def on_failure(
+        self, batch: Sequence[p.Envelope], result: PublishResult,
+    ) -> None:
         pass
 
 
@@ -68,13 +70,16 @@ class LoggingErrorHandler:
         self._options = options
 
     # noinspection PyMethodMayBeStatic
-    def on_failure(self,
-                   batch: Sequence[p.Envelope],
-                   result: PublishResult) -> None:
-        attempts = '' if result.attempt < 1 \
-            else f' after {result.attempt} attempts'
-        msg = f'Failed to publish {len(batch)} ' + \
-              f'envelopes{attempts}; result: {result}'
+    def on_failure(
+        self, batch: Sequence[p.Envelope], result: PublishResult,
+    ) -> None:
+        attempts = (
+            "" if result.attempt < 1 else f" after {result.attempt} attempts"
+        )
+        msg = (
+            f"Failed to publish {len(batch)} "
+            + f"envelopes{attempts}; result: {result}"
+        )
         logging.log(logging.ERROR, msg)
 
 
@@ -100,8 +105,9 @@ class DefaultPublisher:
             workers = min(8, (os.cpu_count() or 1) + 1)
             self._executor = cf.ThreadPoolExecutor(max_workers=workers)
             self._owns_executor = True
-        self._error_handler: ErrorHandler = error_handler if error_handler \
-            else LoggingErrorHandler(options)
+        self._error_handler: ErrorHandler = (
+            error_handler if error_handler else LoggingErrorHandler(options)
+        )
         self._in_flight = atomics.atomic(4, atomics.INT)
 
     def consume(self, source: queue.Queue[p.Envelope]) -> None:
@@ -146,11 +152,13 @@ def _to_batches(
                 return
 
 
-def send_batch(batch: Sequence[p.Envelope],
-               ingestion_url: str,
-               max_attempts: int = MAX_ATTEMPTS,
-               delay_between_attempts_secs: float = DELAY_BETWEEN_ATTEMPTS_SECS,
-               gzip_treshold: int = GZIP_TRESHOLD_BYTES) -> PublishResult:
+def send_batch(
+    batch: Sequence[p.Envelope],
+    ingestion_url: str,
+    max_attempts: int = MAX_ATTEMPTS,
+    delay_between_attempts_secs: float = DELAY_BETWEEN_ATTEMPTS_SECS,
+    gzip_treshold: int = GZIP_TRESHOLD_BYTES,
+) -> PublishResult:
     """
     Serialize and send the batch to ingestion endpoint.
 
@@ -169,14 +177,14 @@ def send_batch(batch: Sequence[p.Envelope],
     if 0 < gzip_treshold < len(body):
         body = gzip.compress(body, compresslevel=GZIP_COMPRESS_LEVEL)
         headers = {
-            'Content-Encoding': 'gzip',
-            'Content-Type': 'application/json',
-            'User-Agent': 'easytelemetry/2.0.2 (Windows)',
+            "Content-Encoding": "gzip",
+            "Content-Type": "application/json",
+            "User-Agent": "easytelemetry/2.0.2 (Windows)",
         }
     else:
         headers = {
-            'Content-Type': 'application/json',
-            'User-Agent': 'easytelemetry/2.0.2 (Windows)',
+            "Content-Type": "application/json",
+            "User-Agent": "easytelemetry/2.0.2 (Windows)",
         }
 
     retry_allowed = max_attempts > 1 and delay_between_attempts_secs > 0
@@ -194,9 +202,7 @@ def send_batch(batch: Sequence[p.Envelope],
         return _raw_send(ingestion_url, body, headers)
 
 
-def _raw_send(url: str,
-              body: bytes,
-              headers: Dict[str, str]) -> PublishResult:
+def _raw_send(url: str, body: bytes, headers: Dict[str, str]) -> PublishResult:
     resp = requests.post(url, headers=headers, data=body)
     if resp.status_code == 200:
         return PublishResult(success=True)
@@ -210,5 +216,6 @@ def _raw_send(url: str,
 
 
 def _can_retry(result: PublishResult) -> bool:
-    return (not result.success) \
-           and result.status_code in RETRYABLE_HTTP_STATUSES
+    return (
+        not result.success
+    ) and result.status_code in RETRYABLE_HTTP_STATUSES
