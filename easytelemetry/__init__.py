@@ -6,6 +6,7 @@ for all further concrete implementations.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Iterable
 from enum import IntEnum
 import inspect
 import logging
@@ -15,22 +16,13 @@ import re
 import socket
 import time
 from types import TracebackType
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    Optional,
-    TypeAlias,
-    TypeVar,
-    Union,
-)
+from typing import Any, TypeAlias, TypeVar
 import uuid
 
 
-PropsT: TypeAlias = Dict[str, Union[str, int, float, bool]]
-MetricFuncT: TypeAlias = Callable[[Union[int, float]], None]
-MetricFuncWithPropsT: TypeAlias = Callable[[Union[int, float], PropsT], None]
+PropsT: TypeAlias = dict[str, str | int | float | bool]
+MetricFuncT: TypeAlias = Callable[[int | float], None]
+MetricFuncWithPropsT: TypeAlias = Callable[[int | float, PropsT], None]
 MetricCtrFuncT: TypeAlias = Callable[[], None]
 MetricCtrFuncWithPropsT: TypeAlias = Callable[[PropsT], None]
 
@@ -58,7 +50,6 @@ class Telemetry(ABC):
     @abstractmethod
     def root(self) -> Logger:
         """Root logger."""
-        pass
 
     @property
     @abstractmethod
@@ -67,7 +58,6 @@ class Telemetry(ABC):
         Telemetry name.
         This is usualy the same as application or service name.
         """
-        pass
 
     @property
     @abstractmethod
@@ -75,48 +65,43 @@ class Telemetry(ABC):
         """
         Minimal loggin level. Everything below this level is ignored.
         """
-        pass
 
     @abstractmethod
     def logger(
         self,
         name: str,
         level: Level = Level.INFO,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> Logger:
         """Get or create a logger of given name."""
-        pass
 
     @abstractmethod
     def metric(
         self,
         name: str,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> MetricFuncT:
         """Get or create a metric track function of given name."""
-        pass
 
     @abstractmethod
     def metric_extra(
         self,
         name: str,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> MetricFuncWithPropsT:
         """
         Get or create a metric track function of given name,
         which also allows for passing extra properties local to the execution.
         """
-        pass
 
     @abstractmethod
     def describe(self) -> str:
         """Return short description for this telemetry."""
-        pass
 
     def metric_incr(
         self,
         name: str,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> MetricCtrFuncT:
         """
         Get or create a metric track function of given name,
@@ -132,7 +117,7 @@ class Telemetry(ABC):
     def metric_incr_extra(
         self,
         name: str,
-        props: Optional[PropsT],
+        props: PropsT | None,
     ) -> MetricCtrFuncWithPropsT:
         """
         Get or create a metric track function of given name,
@@ -149,7 +134,7 @@ class Telemetry(ABC):
     def metric_timer(
         self,
         name: str,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> MetricCtrFuncT:
         """
         Get or create a metric track function of given name,
@@ -173,7 +158,7 @@ class Telemetry(ABC):
     def metric_timer_extra(
         self,
         name: str,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> MetricCtrFuncWithPropsT:
         """
         Get or create a metric track function of given name,
@@ -198,7 +183,7 @@ class Telemetry(ABC):
     def metric_reusable_timer(
         self,
         name: str,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> ReusableTimer:
         """
         Create reusable timer object with methods start and stop, which give
@@ -221,49 +206,40 @@ class Logger(ABC):
     @abstractmethod
     def name(self) -> str:
         """Get logger name."""
-        pass
 
     @property
     @abstractmethod
     def level(self) -> Level:
         """Get current minimal logging level for this logger."""
-        pass
 
     @abstractmethod
     def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Log message with DEBUG logging level."""
-        pass
 
     @abstractmethod
     def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Log message with INFO logging level."""
-        pass
 
     @abstractmethod
     def warn(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Log message with WARN logging level."""
-        pass
 
     @abstractmethod
     def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Log message with ERROR logging level."""
-        pass
 
     @abstractmethod
     def critical(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Log message with CRITICAL logging level."""
-        pass
 
     @abstractmethod
     def exception(
         self,
         ex: BaseException,
-        tb: Optional[TracebackType] = None,
         level: Level = Level.ERROR,
         **kwargs: Any,
     ) -> None:
         """Log exception. ERROR is default logging level."""
-        pass
 
 
 class Activity:
@@ -276,21 +252,21 @@ class Activity:
     def __init__(self, telemetry: Telemetry, name: str):
         """ """
         self._name = name
-        self._id: Optional[uuid.UUID] = None
+        self._activity_id: uuid.UUID | None = None
         self._start: int = 0
-        self._props: Optional[PropsT] = None
+        self._props: PropsT = {}
         self._logger = telemetry.logger(name)
         self._elapsed = telemetry.metric_extra(f"{name}_ms")
         self._success = telemetry.metric_incr_extra(f"{name}_ok", None)
         self._error = telemetry.metric_incr_extra(f"{name}_err", None)
 
     @property
-    def id(self) -> Optional[uuid.UUID]:
+    def activity_id(self) -> uuid.UUID | None:
         """
         Get activity ID. The ID is present after the start method call
         until the stop method call.
         """
-        return self._id
+        return self._activity_id
 
     @property
     def name(self) -> str:
@@ -302,18 +278,18 @@ class Activity:
         """Get logger created for the activity."""
         return self._logger
 
-    def start(self, props: Optional[PropsT] = None) -> None:
+    def start(self, props: PropsT | None = None) -> None:
         """Start the activity."""
         self._start = time.perf_counter_ns()
-        self._id = uuid.uuid4()
+        self._activity_id = uuid.uuid4()
         self._props = {
-            "activity_id": str(self._id),
+            "activity_id": str(self._activity_id),
             "activity": self.name,
         }
         if props is not None:
             self._props.update(**props)
 
-    def stop(self, ex: Optional[BaseException] = None) -> None:
+    def stop(self, ex: BaseException | None = None) -> None:
         """
         Stop the activity and publish activity metrics
         such as succcess, error, elapsed time, etc.
@@ -326,12 +302,11 @@ class Activity:
                 self._success(self._props)
             else:
                 self._error(self._props)
-                self._logger.exception(ex, **self._props)
+                self._logger.exception(ex, **self._props)  # type: ignore[arg-type]
             self._elapsed(elapsed_ms, self._props)
         finally:
             self._start = 0
-            self._id = None
-            self._props = None
+            self._activity_id = None
 
     def __enter__(self) -> Activity:
         self.start()
@@ -359,7 +334,7 @@ class ReusableTimer:
         self._stop: int = 0
         self._metric_fn = metric_fn
         self._published = False
-        self._props: Optional[PropsT] = None
+        self._props: PropsT = {}
 
     @property
     def elapsed_ns(self) -> int:
@@ -374,13 +349,14 @@ class ReusableTimer:
     def elapsed_ms(self) -> int:
         return int(self.elapsed_ns / 1000000)
 
-    def start(self, props: Optional[PropsT] = None) -> None:
-        self._props = props
+    def start(self, props: PropsT | None = None) -> None:
+        if props is not None:
+            self._props = props
         self._start = time.perf_counter_ns()
         self._stop = 0
         self._published = False
 
-    def stop(self):
+    def stop(self) -> None:
         self._stop = time.perf_counter_ns()
         if not self._published and 0 < self._start < self._stop:
             self._metric_fn(self.elapsed_ms, self._props)
@@ -457,7 +433,7 @@ def get_environment_name(app_name: str) -> str:
     return normalize_environment_name(s)
 
 
-def normalize_environment_name(name: Optional[str]) -> str:  # noqa: CFQ004
+def normalize_environment_name(name: str | None) -> str:
     """
     Normalize environment name, so slight deviations in conventions
     does not matter.
@@ -482,7 +458,11 @@ def get_app_version(app_name: str) -> str:
     Try to determine application semantic version based on conventional
     environment variables. Returns '0.0.0.0' if it could not be determined.
     """
-    return os.environ.get(f"{app_name.upper()}_APP_VERSION") or os.environ.get("APP_VERSION") or "0.0.0.0"
+    return (
+        os.environ.get(f"{app_name.upper()}_APP_VERSION")
+        or os.environ.get("APP_VERSION")
+        or "0.0.0.0"  # noqa: S104
+    )
 
 
 # noinspection DuplicatedCode, false positive
@@ -535,7 +515,11 @@ class StdLoggingHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         (props, ex) = _parse_record(record)
-        logger = self._telemetry.root if record.name == "root" else self._telemetry.logger(record.name)
+        logger = (
+            self._telemetry.root
+            if record.name == "root"
+            else self._telemetry.logger(record.name)
+        )
         if ex is not None:
             level = std_logging_to_level(record.levelno)
             logger.exception(ex, level=level, **props)
@@ -556,19 +540,23 @@ class StdLoggingHandler(logging.Handler):
 
     def configure_std_logging(self, clear_handlers: bool = False) -> None:
         logging.basicConfig(
-            level=self.level, force=clear_handlers, datefmt="%Y-%m-%d %H:%M:%S", format="%(message)s", handlers=[self]
+            level=self.level,
+            force=clear_handlers,
+            datefmt="%Y-%m-%d %H:%M:%S",
+            format="%(message)s",
+            handlers=[self],
         )
 
 
-def _parse_record(r: logging.LogRecord) -> tuple[PropsT, Optional[BaseException]]:
-    props = {
+def _parse_record(r: logging.LogRecord) -> tuple[PropsT, BaseException | None]:
+    props: PropsT = {
         "path": r.pathname,
         "line": r.lineno,
         "module": r.module,
     }
     if r.funcName and r.funcName != "<module>":
         props["func"] = r.funcName
-    ex: Optional[BaseException] = None
+    ex: BaseException | None = None
     if r.exc_info is not None:
         (_, ex, _) = r.exc_info
     if ex is not None and r.stack_info:
@@ -589,7 +577,7 @@ def stack_to_props(frame_idx: int) -> PropsT:
     if len(st) <= frame_idx:
         return {}
     frame = st[frame_idx]
-    props = {
+    props: PropsT = {
         "path": frame.filename,
         "line": frame.lineno,
     }
@@ -601,7 +589,7 @@ def stack_to_props(frame_idx: int) -> PropsT:
     return props
 
 
-def create_props(primer: Optional[PropsT], frame_idx: int) -> PropsT:
+def create_props(primer: PropsT | None, frame_idx: int) -> PropsT:
     """
     Create properties by merging (optional) original dictionary of properties
     with information derived from relevant stacktrace.
@@ -619,13 +607,19 @@ def create_props(primer: Optional[PropsT], frame_idx: int) -> PropsT:
     return stack_to_props(frame_idx)
 
 
-def merge_props(*args: Optional[PropsT]) -> PropsT:
+def merge_props(*args: PropsT | None) -> PropsT:
     """
     Merge any number of properties into one dictionary.
     Later ones silently overwrite earlier ones on matching keys.
     """
-    props = {}
+    props: PropsT = {}
     for p in args:
         if p:
             props.update(**p)
     return props
+
+
+def str_dict(props: PropsT) -> dict[str, str]:
+    """Convert dictionary values, which might be numbers and booleans
+    into strings."""
+    return {k: str(v) for k, v in props.items()}

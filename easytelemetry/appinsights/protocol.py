@@ -5,6 +5,7 @@ to construct JSON body of HTTP request to Application Insights.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -14,14 +15,15 @@ import os
 import re
 import time
 import traceback
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, TypeAlias
 
 import orjson
-import requests
+import requests  # type: ignore[import]
 
 
-# https://github.com/microsoft/ApplicationInsights-dotnet/tree/master/BASE
-# /Schema/PublicSchema
+# fmt: off
+# https://github.com/microsoft/ApplicationInsights-dotnet/tree/master/BASE/Schema/PublicSchema
+# fmt: on
 
 MAX_KEY_LENGTH = 128
 MAX_VALUE_LENGTH = 8192
@@ -31,16 +33,20 @@ GZIP_COMPRESS_LEVEL = 6
 GZIP_THRESHOLD_BYTES = 1000
 MAX_ATTEMPTS = 3
 DELAY_BETWEEN_ATTEMPTS_SECS = 0.5
+REQUEST_TIMEOUT_SECS = 15
 
 UNSPECIFIED_ERROR = -1
 CONNECTION_ERROR = 0
 SUCCESS_HTTP_STATUSES = [200]
 RETRYABLE_HTTP_STATUSES = [CONNECTION_ERROR, 500, 502]
 
+PropertiesT: TypeAlias = dict[str, str] | None
+MeasurementsT: TypeAlias = dict[str, float] | None
+
 
 def is_safe_key(s: str) -> bool:
     """Determine if the key can be used as metric or logger name."""
-    return True if SAFE_STR_REGEX.match(s) else False
+    return bool(SAFE_STR_REGEX.match(s))
 
 
 def sanitize_value(s: str) -> str:
@@ -48,7 +54,7 @@ def sanitize_value(s: str) -> str:
     return s[:MAX_VALUE_LENGTH] if s and len(s) > MAX_VALUE_LENGTH else s
 
 
-def serialize(data: Union[Sequence[Envelope], Envelope]) -> bytes:
+def serialize(data: Sequence[Envelope] | Envelope) -> bytes:
     def convert(obj: Any) -> str:
         if isinstance(obj, timedelta):
             return str(obj)
@@ -59,8 +65,8 @@ def serialize(data: Union[Sequence[Envelope], Envelope]) -> bytes:
     return orjson.dumps(data, default=convert, option=jsopts)
 
 
-def deserialize(data: bytes) -> Union[ApiResponseBody, str, None]:
-    def errors(node: Any) -> List[ApiResponseError]:
+def deserialize(data: bytes) -> ApiResponseBody | str | None:
+    def errors(node: Any) -> list[ApiResponseError]:
         result = []
         if "errors" in node:
             for e in node["errors"]:
@@ -85,9 +91,16 @@ def deserialize(data: bytes) -> Union[ApiResponseBody, str, None]:
         return data.decode("utf-8")
 
 
-def http_send(url: str, body: bytes, headers: Dict[str, str], attempt: int) -> PublishResult:
+def http_send(
+    url: str,
+    body: bytes,
+    headers: dict[str, str],
+    attempt: int,
+) -> PublishResult:
     try:
-        resp = requests.post(url, headers=headers, data=body)
+        resp = requests.post(
+            url, headers=headers, data=body, timeout=REQUEST_TIMEOUT_SECS
+        )
 
         if resp.status_code in SUCCESS_HTTP_STATUSES:
             return PublishResult(True, resp.status_code, attempt)
@@ -140,12 +153,15 @@ def send_batch(
     if max_attempts > 1 and delay_between_attempts_secs > 0:
         for attempt in range(1, MAX_ATTEMPTS + 1):
             result = http_send(endpoint, body, headers, attempt)
-            end = result.success or attempt == MAX_ATTEMPTS or result.status_code not in RETRYABLE_HTTP_STATUSES
+            end = (
+                result.success
+                or attempt == MAX_ATTEMPTS
+                or result.status_code not in RETRYABLE_HTTP_STATUSES
+            )
             if end:
                 return result
             time.sleep(delay_between_attempts_secs)
-
-        assert False, "code should not reach here ('attempt == MAX_ATTEMPTS')"
+        raise NotImplementedError("this should be unreachable")
     else:
         return http_send(endpoint, body, headers, 1)
 
@@ -157,8 +173,8 @@ class PublishResult:
     success: bool
     status_code: int
     attempt: int = 1
-    response_body: Union[ApiResponseBody, str, None] = None
-    exception: Optional[Exception] = None
+    response_body: ApiResponseBody | str | None = None
+    exception: Exception | None = None
 
 
 class SeverityLevel(Enum):
@@ -194,19 +210,19 @@ class DataPoint:
 
     # Metric weight of the aggregated metric.
     # Should not be set for a measurement.
-    count: Optional[int] = None
+    count: int | None = None
 
     # Minimum value of the aggregated metric.
     # Should not be set for a measurement.
-    min: Optional[float] = None
+    min: float | None = None
 
     # Maximum value of the aggregated metric.
     # Should not be set for a measurement.
-    max: Optional[float] = None
+    max: float | None = None
 
     # Standard deviation of the aggregated metric.
     # Should not be set for a measurement.
-    stdDev: Optional[float] = None  # noqa: N815
+    stdDev: float | None = None
 
 
 @dataclass(frozen=True)
@@ -225,12 +241,12 @@ class EventData:
     ver: int = 2
 
     # Collection of custom properties.
-    properties: Optional[Dict[str, str]] = None
+    properties: PropertiesT = None
 
     # Collection of custom measurements.
-    measurements: Optional[Dict[str, float]] = None
+    measurements: MeasurementsT = None
 
-    def to_envelope(self, tags: Optional[Dict[str, str]] = None) -> Envelope:
+    def to_envelope(self, tags: PropertiesT = None) -> Envelope:
         return Envelope(
             name=Envelope.EVENT_NAME,
             time=datetime.utcnow(),
@@ -251,13 +267,13 @@ class StackFrame:
     method: str
 
     # Name of the assembly (dll, jar, etc.) containing this function.
-    assembly: Optional[str] = None
+    assembly: str | None = None
 
     # File name or URL of the method implementation.
-    fileName: Optional[str] = None  # noqa: N815
+    fileName: str | None = None
 
     # Line number of the code implementation.
-    line: Optional[int] = None
+    line: int | None = None
 
 
 @dataclass(frozen=True)
@@ -265,22 +281,22 @@ class ExceptionDetails:
     """Exception details of the exception in a chain."""
 
     # Exception type name.
-    typeName: str  # noqa: N815
+    typeName: str
 
     # Exception message.
     message: str
 
     # List of stack frames. Either stack or parsedStack should have a value.
-    parsedStack: Optional[List[StackFrame]] = None  # noqa: N815
+    parsedStack: list[StackFrame] | None = None
 
     # Text describing the stack.
     # Either stack or parsedStack should have a value.
-    stack: Optional[str] = None
+    stack: str | None = None
 
     # Indicates if full exception stack is provided in the exception.
     # The stack may be trimmed, such as in the case
     # of a StackOverflow exception.
-    hasFullStack: bool = True  # noqa: N815
+    hasFullStack: bool = True
 
     # In case exception is nested (outer exception contains inner one),
     # the id and outerId properties are used to represent the nesting.
@@ -288,7 +304,7 @@ class ExceptionDetails:
 
     # The value of outerId is a reference to an element in ExceptionDetails
     # that represents the outer exception.
-    outerId: int = 0  # noqa: N815
+    outerId: int = 0
 
 
 @dataclass(frozen=True)
@@ -299,7 +315,7 @@ class ExceptionData:
     """
 
     # Exception chain - list of inner exceptions.
-    exceptions: List[ExceptionDetails]
+    exceptions: list[ExceptionDetails]
 
     # Schema version
     ver: int = 2
@@ -307,20 +323,20 @@ class ExceptionData:
     # Severity level. Mostly used to indicate exception severity level
     # when it is reported by logging library.
     # Verbose, Information, Warning, Error, Critical,
-    severityLevel: SeverityLevel = SeverityLevel.INFORMATION  # noqa: N815
+    severityLevel: SeverityLevel = SeverityLevel.INFORMATION
 
     # Identifier of where the exception was thrown in code.
     # Used for exceptions grouping. Typically, a combination of exception type
     # and a function from the call stack.
-    problemId: Optional[str] = None  # noqa: N815
+    problemId: str | None = None
 
     # Collection of custom properties.
-    properties: Optional[Dict[str, str]] = None
+    properties: PropertiesT = None
 
     # Collection of custom measurements.
-    measurements: Optional[Dict[str, float]] = None
+    measurements: MeasurementsT = None
 
-    def to_envelope(self, tags: Optional[Dict[str, str]] = None) -> Envelope:
+    def to_envelope(self, tags: PropertiesT = None) -> Envelope:
         return Envelope(
             name=Envelope.EXCEPTION_NAME,
             time=datetime.utcnow(),
@@ -332,8 +348,8 @@ class ExceptionData:
     def create(
         ex: BaseException,
         level: SeverityLevel = SeverityLevel.ERROR,
-        properties: Optional[Dict[str, str]] = None,
-        measurements: Optional[Dict[str, float]] = None,
+        properties: PropertiesT = None,
+        measurements: MeasurementsT = None,
     ) -> ExceptionData:
         mdl = ex.__class__.__module__
         clsname = ex.__class__.__name__
@@ -354,8 +370,8 @@ class ExceptionData:
         )
 
     @staticmethod
-    def _parsed_stack(ex: BaseException) -> List[StackFrame]:
-        parsed_stack: List[StackFrame] = []
+    def _parsed_stack(ex: BaseException) -> list[StackFrame]:
+        parsed_stack: list[StackFrame] = []
         frames = traceback.extract_tb(ex.__traceback__)
         level = 1
         prev_path = ""
@@ -387,11 +403,11 @@ class ExceptionData:
     @staticmethod
     def _problem_id(
         exception_name: str,
-        file_path: Optional[str],
-        line: Optional[int],
+        file_path: str | None,
+        line: int | None,
     ) -> str:
-        alg = hashlib.md5()  # nosec
-        bts = f"{file_path}:{line}".encode("utf-8")
+        alg = hashlib.md5()  # noqa: S324, this is not security issue
+        bts = f"{file_path}:{line}".encode()
         alg.update(bts)
         md5 = alg.hexdigest()
         return f"{exception_name}/{md5}"
@@ -414,15 +430,15 @@ class MessageData:
 
     # Trace severity level.
     # Verbose, Information, Warning, Error, Critical,
-    severityLevel: SeverityLevel = SeverityLevel.INFORMATION  # noqa: N815
+    severityLevel: SeverityLevel = SeverityLevel.INFORMATION
 
     # Collection of custom properties.
-    properties: Optional[Dict[str, str]] = None
+    properties: PropertiesT = None
 
     # Collection of custom measurements.
-    measurements: Optional[Dict[str, float]] = None
+    measurements: MeasurementsT = None
 
-    def to_envelope(self, tags: Optional[Dict[str, str]] = None) -> Envelope:
+    def to_envelope(self, tags: PropertiesT = None) -> Envelope:
         return Envelope(
             name=Envelope.TRACE_NAME,
             time=datetime.utcnow(),
@@ -441,15 +457,15 @@ class MetricData:
     # List of metrics. Only one metric in the list is currently supported
     # by Application Insights storage.
     # If multiple data points were sent only the first one will be used.
-    metrics: List[DataPoint]
+    metrics: list[DataPoint]
 
     # Schema version
     ver: int = 2
 
     # Collection of custom properties.
-    properties: Optional[Dict[str, str]] = None
+    properties: PropertiesT = None
 
-    def to_envelope(self, tags: Optional[Dict[str, str]] = None) -> Envelope:
+    def to_envelope(self, tags: PropertiesT = None) -> Envelope:
         return Envelope(
             name=Envelope.METRIC_NAME,
             time=datetime.utcnow(),
@@ -461,7 +477,7 @@ class MetricData:
     def create(
         name: str,
         value: float,
-        properties: Optional[Dict[str, str]] = None,
+        properties: PropertiesT = None,
     ) -> MetricData:
         point = DataPoint(name, value)
         return MetricData([point], properties=properties)
@@ -493,32 +509,32 @@ class RemoteDependencyData:
     # Identifier of a dependency call instance.
     # Used for correlation with the request telemetry item corresponding
     # to this dependency call.
-    id: Optional[str] = None
+    id: str | None = None
 
     # Result code of a dependency call.
     # Examples are SQL error code and HTTP status code.
-    resultCode: Optional[str] = None  # noqa: N815
+    resultCode: str | None = None
 
     # Command initiated by this dependency call.
     # Examples are SQL statement and HTTP URL's with all query parameters.
-    data: Optional[str] = None
+    data: str | None = None
 
     # Dependency type name.
     # Very low cardinality value for logical grouping of dependencies
     # and interpretation of other fields like commandName and resultCode.
     # Examples are SQL, Azure table, and HTTP.
-    type: Optional[str] = None
+    type: str | None = None
 
     # Target site of a dependency call. Examples are server name, host address.
-    target: Optional[str] = None
+    target: str | None = None
 
     # Collection of custom properties.
-    properties: Optional[Dict[str, str]] = None
+    properties: PropertiesT = None
 
     # Collection of custom measurements.
-    measurements: Optional[Dict[str, float]] = None
+    measurements: MeasurementsT = None
 
-    def to_envelope(self, tags: Optional[Dict[str, str]] = None) -> Envelope:
+    def to_envelope(self, tags: PropertiesT = None) -> Envelope:
         return Envelope(
             name=Envelope.DEPENDENCY_NAME,
             time=datetime.utcnow(),
@@ -544,7 +560,7 @@ class RequestData:
     duration: timedelta
 
     # Result of a request execution. HTTP status code for HTTP requests.
-    responseCode: str  # noqa: N815
+    responseCode: str
 
     # Indication of successful or unsuccessful call.
     success: bool = True
@@ -555,24 +571,24 @@ class RequestData:
     # Source of the request.
     # Examples are the instrumentation key of the caller
     # or the ip address of the caller.
-    source: Optional[str] = None
+    source: str | None = None
 
     # Name of the request. Represents code path taken to process request.
     # Low cardinality value to allow better grouping of requests.
     # For HTTP requests it represents the HTTP method
     # and URL path template like 'GET /values/{id}'.
-    name: Optional[str] = None
+    name: str | None = None
 
     # Request URL with all query string parameters.
-    url: Optional[str] = None
+    url: str | None = None
 
     # Collection of custom properties.
-    properties: Optional[Dict[str, str]] = None
+    properties: PropertiesT = None
 
     # Collection of custom measurements.
-    measurements: Optional[Dict[str, float]] = None
+    measurements: MeasurementsT = None
 
-    def to_envelope(self, tags: Optional[Dict[str, str]] = None) -> Envelope:
+    def to_envelope(self, tags: PropertiesT = None) -> Envelope:
         return Envelope(
             name=Envelope.REQUEST_NAME,
             time=datetime.utcnow(),
@@ -585,19 +601,15 @@ class RequestData:
 class Data:
     """Data container."""
 
+    # fmt: off
     # Discriminated union of data item.
-    baseData: Union[  # noqa: N815
-        MessageData,
-        ExceptionData,
-        MetricData,
-        EventData,
-        RemoteDependencyData,
-        RequestData,
-    ]
+    baseData: MessageData | ExceptionData | MetricData | EventData | \
+              RemoteDependencyData | RequestData
+    # fmt: on
 
     # ExceptionData|MessageData|EventData|MetricData|RemoteDependencyData|
     # RequestData
-    baseType: str  # noqa: N815
+    baseType: str
 
 
 class TagKey:
@@ -786,7 +798,7 @@ class Envelope:
     # The key is typically represented as a GUID, but there are cases
     # when it is not a guid. No code should rely on iKey being a GUID.
     # Instrumentation key is case-insensitive.
-    iKey: str = ""  # noqa: N815
+    iKey: str = ""
 
     # Envelope version. For internal use only. By assigning this the default,
     # it will not be serialized within the payload
@@ -794,20 +806,20 @@ class Envelope:
     ver: int = 1
 
     # Sampling rate used in application.
-    sampleRate: float = 100.0  # noqa: N815
+    sampleRate: float = 100.0
 
     # Sequence field used to track absolute order of uploaded events.
-    seq: Optional[str] = None
+    seq: str | None = None
 
     # A collection of values bit-packed to represent
     # how the event was processed.
     # Currently, represents whether IP address needs to be stripped out
     # from event (set 0x200000) or should be preserved.
-    flags: Optional[int] = None
+    flags: int | None = None
 
     # Key/value collection of context properties.
     # See TagKey for information on available properties.
-    tags: Optional[Dict[str, str]] = None
+    tags: PropertiesT = None
 
     def to_json(self) -> str:
         bts = serialize(self)
@@ -817,12 +829,12 @@ class Envelope:
 @dataclass(frozen=True)
 class ApiResponseError:
     index: int
-    statusCode: int  # noqa: N815
+    statusCode: int
     message: str
 
 
 @dataclass(frozen=True)
 class ApiResponseBody:
-    itemsReceived: int  # noqa: N815
-    itemsAccepted: int  # noqa: N815
-    errors: List[ApiResponseError]
+    itemsReceived: int
+    itemsAccepted: int
+    errors: list[ApiResponseError]

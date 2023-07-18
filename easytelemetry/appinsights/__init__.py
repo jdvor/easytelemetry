@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import atexit
+from collections.abc import Callable, Generator, Sequence
 import concurrent.futures as cf
 from dataclasses import dataclass
-from datetime import datetime
 import os
 import platform
 import posixpath
@@ -15,19 +15,7 @@ import tempfile
 import threading
 import time
 from types import TracebackType
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Generator,
-    List,
-    Optional,
-    Protocol,
-    Sequence,
-    Tuple,
-    TypeAlias,
-    Union,
-)
+from typing import Any, Protocol, TypeAlias
 
 from easytelemetry import (
     Level,
@@ -43,6 +31,7 @@ from easytelemetry import (
     get_host_ip,
     get_host_name,
     merge_props,
+    str_dict,
 )
 import easytelemetry.appinsights.protocol as p
 
@@ -52,10 +41,10 @@ DEFAULT_INGESTION = "https://dc.services.visualstudio.com/v2/track"
 
 def build(
     app_name: str,
-    configure: Optional[Callable[[Options], None]] = None,
-    options: Optional[Options] = None,
-    publisher: Optional[Publisher] = None,
-    executor: Optional[cf.ThreadPoolExecutor] = None,
+    configure: Callable[[Options], None] | None = None,
+    options: Options | None = None,
+    publisher: Publisher | None = None,
+    executor: cf.ThreadPoolExecutor | None = None,
 ) -> AppInsightsTelemetry:
     """
     Build telemetry instance based on Azure Application Insights service.
@@ -72,7 +61,7 @@ def build(
     :param executor: If publisher is passed than this argument is ignored;
         otherwise used to create :class:`DefaultPublisher`
     """
-    global_props = {
+    global_props: PropsT = {
         "app": app_name,
         "env": get_environment_name(app_name),
     }
@@ -97,7 +86,7 @@ def build(
 class ConnectionString:
     instrumentation_key: str
     ingestion_endpoint: str = DEFAULT_INGESTION
-    live_endpoint: Optional[str] = None
+    live_endpoint: str | None = None
 
     _FULL_PATTERN = (
         r"^(InstrumentationKey\s*=\s*)?"
@@ -129,7 +118,7 @@ class ConnectionString:
         return ConnectionString(key, ingest, live)
 
 
-def get_env_var(app_name: str, var_name: str) -> Optional[str]:
+def get_env_var(app_name: str, var_name: str) -> str | None:
     """
     Get environment variable with or even without application name prefix,
     whatever is present at the time.
@@ -165,13 +154,13 @@ def ensure_local_storage(app_name: str) -> str:
 class Options:
     connection: ConnectionString
     use_local_storage: bool = False
-    local_storage_path: Optional[str] = None
+    local_storage_path: str | None = None
     min_level: Level = Level.INFO
     queue_maxsize: int = 1000
     batch_maxsize: int = 100
     publish_interval_secs: float = 20
     publish_timeout_secs: float = 10
-    max_publishing_workers: Optional[int] = None
+    max_publishing_workers: int | None = None
     debug: bool = False
     setup_std_logging: bool = False
     clear_std_logging_handlers: bool = False
@@ -179,15 +168,20 @@ class Options:
 
     CONNECTION_STRING_ENV_VAR = "APPLICATIONINSIGHTS_CONNECTION_STRING"
     USE_LOCAL_STORAGE_ENV_VAR = "APPLICATIONINSIGHTS_USE_LOCAL_STORAGE"
-    _ERRMSG_ENVVAR = "Application Insights connection string environment " + "variable is not set"
-    _ERRMSG_STORAGE = "Application Insights local storage " + "directory does not exist"
+    _ERRMSG_ENVVAR = (
+        "Application Insights connection string environment "
+        + "variable is not set"
+    )
+    _ERRMSG_STORAGE = (
+        "Application Insights local storage " + "directory does not exist"
+    )
 
     @staticmethod
     def from_env(app_name: str) -> Options:
         """Create options from expected environment variables."""
         conn_str = get_env_var(app_name, Options.CONNECTION_STRING_ENV_VAR)
         if conn_str is None:
-            raise EnvironmentError(Options._ERRMSG_ENVVAR)
+            raise OSError(Options._ERRMSG_ENVVAR)
         local = get_env_var(app_name, Options.USE_LOCAL_STORAGE_ENV_VAR)
         return Options.from_connection_str(app_name, conn_str, bool(local))
 
@@ -195,7 +189,7 @@ class Options:
     def from_connection_str(
         app_name: str,
         conn_str: str,
-        use_local: Union[bool, str] = False,
+        use_local: bool | str = False,
     ) -> Options:
         """
         Create options from connection string, which is only mandatory part
@@ -211,7 +205,7 @@ class Options:
         else:
             if use_local:
                 if not os.path.isdir(use_local):
-                    raise EnvironmentError(Options._ERRMSG_STORAGE)
+                    raise OSError(Options._ERRMSG_STORAGE)
                 storage_path = use_local
                 use_local = True
             else:
@@ -221,16 +215,23 @@ class Options:
         return Options(cs, use_local, storage_path)
 
 
-FlushT: TypeAlias = Tuple[Optional[bool], Optional[List[Exception]]]
+FlushT: TypeAlias = tuple[bool | None, list[Exception] | None]
 
 
 class AppInsightsTelemetry(Telemetry):
-    def __init__(self, name: str, global_props: PropsT, tags: Dict[str, str], options: Options, publisher: Publisher):
+    def __init__(
+        self,
+        name: str,
+        global_props: PropsT,
+        tags: dict[str, str],
+        options: Options,
+        publisher: Publisher,
+    ):
         self._name = name
         self._global_props = global_props
         self._tags = tags
         self._options = options
-        self._publishing: Optional[threading.Timer] = None
+        self._publishing: threading.Timer | None = None
         self._queue: Queue[p.Envelope] = Queue(maxsize=options.queue_maxsize)
         self._rootlgr = AppInsightsLogger(
             "_root",
@@ -238,10 +239,10 @@ class AppInsightsTelemetry(Telemetry):
             global_props,
             self._queue,
         )
-        self._loggers: Dict[str, Logger] = {self._rootlgr.name: self._rootlgr}
-        self._metrics: Dict[str, _Metric] = {}
+        self._loggers: dict[str, Logger] = {self._rootlgr.name: self._rootlgr}
+        self._metrics: dict[str, _Metric] = {}
         self._publisher = publisher
-        self._std_logging_handler: Optional[StdLoggingHandler] = None
+        self._std_logging_handler: StdLoggingHandler | None = None
 
     @property
     def root(self) -> Logger:
@@ -260,7 +261,7 @@ class AppInsightsTelemetry(Telemetry):
         self,
         name: str,
         level: Level = Level.INFO,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> Logger:
         lgr = self._loggers.get(name)
         if lgr is None:
@@ -273,7 +274,7 @@ class AppInsightsTelemetry(Telemetry):
     def metric(
         self,
         name: str,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> MetricFuncT:
         metric = self._metrics.get(name)
         if metric is None:
@@ -285,7 +286,7 @@ class AppInsightsTelemetry(Telemetry):
     def metric_extra(
         self,
         name: str,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> MetricFuncWithPropsT:
         metric = self._metrics.get(name)
         if metric is None:
@@ -295,9 +296,13 @@ class AppInsightsTelemetry(Telemetry):
         return metric.track_extra
 
     def describe(self) -> str:
-        logger_names = [str(x) for x in self._loggers.keys()]
-        metric_names = [str(x) for x in self._metrics.keys()]
-        pub = "no" if self._publishing is None else f"yes ({self._publishing.name})"
+        logger_names = [str(x) for x in self._loggers]
+        metric_names = [str(x) for x in self._metrics]
+        pub = (
+            "no"
+            if self._publishing is None
+            else f"yes ({self._publishing.name})"
+        )
         s = [
             f"name: {self._name}",
             f'loggers: {", ".join(logger_names)}',
@@ -313,7 +318,9 @@ class AppInsightsTelemetry(Telemetry):
     def start_publishing(self) -> None:
         if self._publishing is not None:
             return
-        self._publishing = threading.Timer(interval=self._options.publish_interval_secs, function=self.flush)
+        self._publishing = threading.Timer(
+            interval=self._options.publish_interval_secs, function=self.flush
+        )
         if self._options.use_atexit:
             atexit.register(self.stop_publishing)
         self._publishing.start()
@@ -337,11 +344,14 @@ class AppInsightsTelemetry(Telemetry):
             if self._queue.qsize() <= 0:
                 return None, None
             results = self._publisher.publish(self._queue)
-            success = all([x.success for x in results])
-            errors = None if success else [x.exception for x in results if x.exception is not None]
+            success = all(x.success for x in results)
+            errors = (
+                None
+                if success
+                else [x.exception for x in results if x.exception is not None]
+            )
             return success, errors
         except RuntimeError as e:
-            _error("failed to publish telemetry data", e)
             return False, [e]
 
     def __enter__(self) -> AppInsightsTelemetry:
@@ -387,14 +397,14 @@ class AppInsightsLogger(Logger):
         severity: p.SeverityLevel,
         msg: str,
         args: Any,
-        props: Optional[PropsT],
+        props: PropsT | None,
     ) -> None:
         message = msg % args
         properties = merge_props(self._props, props)
         data = p.MessageData(
             message=message,
             severityLevel=severity,
-            properties=properties,
+            properties=str_dict(properties),
         )
         envelope = data.to_envelope()
         self._queue.put_nowait(envelope)
@@ -435,7 +445,7 @@ class AppInsightsLogger(Logger):
         data = p.ExceptionData.create(
             ex=ex,
             level=_level_to_severity(level),
-            properties=props,
+            properties=str_dict(props),
         )
         envelope = data.to_envelope()
         self._queue.put_nowait(envelope)
@@ -454,17 +464,17 @@ class _Metric:
     def name(self) -> str:
         return self._name
 
-    def track_extra(self, value: Union[int, float], extra: PropsT) -> None:
+    def track_extra(self, value: int | float, extra: PropsT) -> None:
         self._track(value, self._props | extra)
 
-    def track(self, value: Union[int, float]) -> None:
+    def track(self, value: int | float) -> None:
         self._track(value, self._props)
 
-    def _track(self, value: Union[int, float], props: PropsT) -> None:
+    def _track(self, value: int | float, props: PropsT) -> None:
         envelope = p.MetricData.create(
             name=self._name,
             value=value,
-            properties=props,
+            properties=str_dict(props),
         ).to_envelope()
         self._queue.put_nowait(envelope)
 
@@ -472,7 +482,7 @@ class _Metric:
         return self._name
 
 
-def _level_to_severity(level: Level) -> p.SeverityLevel:  # noqa: CFQ004
+def _level_to_severity(level: Level) -> p.SeverityLevel:
     if level == level.DEBUG:
         return p.SeverityLevel.VERBOSE
     if level == level.INFO:
@@ -487,7 +497,7 @@ def _level_to_severity(level: Level) -> p.SeverityLevel:  # noqa: CFQ004
 
 
 class Publisher(Protocol):
-    def publish(self, source: Queue[p.Envelope]) -> List[p.PublishResult]:
+    def publish(self, source: Queue[p.Envelope]) -> list[p.PublishResult]:
         pass
 
     def close(self) -> None:
@@ -502,26 +512,36 @@ class DefaultPublisher:
     as means of dispatching HTTP requests to ingestion endpoint.
     """
 
-    def __init__(self, options: Options, executor: Optional[cf.ThreadPoolExecutor] = None):
+    def __init__(
+        self,
+        options: Options,
+        executor: cf.ThreadPoolExecutor | None = None,
+    ):
         self._options = options
         if executor:
             self._executor = executor
             self._owns_executor = False
         else:
             workers = (
-                options.max_publishing_workers if options.max_publishing_workers else min(8, (os.cpu_count() or 1) + 1)
+                options.max_publishing_workers
+                if options.max_publishing_workers
+                else min(8, (os.cpu_count() or 1) + 1)
             )
             self._executor = cf.ThreadPoolExecutor(max_workers=workers)
             self._owns_executor = True
 
-    def publish(self, source: Queue[p.Envelope]) -> List[p.PublishResult]:
+    def publish(self, source: Queue[p.Envelope]) -> list[p.PublishResult]:
         """
         Consume the source (queue) and publish everything collected
         upto this point to Application Insights ingestion endpoint.
         """
         batches = _create_batches(source, self._options)
-        tasks = self._executor.map(self._send_batch, batches, timeout=self._options.publish_timeout_secs)
-        result = [x for x in tasks]
+        tasks = self._executor.map(
+            self._send_batch,
+            batches,
+            timeout=self._options.publish_timeout_secs,
+        )
+        result = list(tasks)
         return result
 
     def _send_batch(self, batch: Sequence[p.Envelope]) -> p.PublishResult:
@@ -535,12 +555,13 @@ class DefaultPublisher:
         if self._owns_executor:
             self._executor.shutdown(wait=True)
 
-    def _on_failure(self, batch: Sequence[p.Envelope], r: p.PublishResult) -> None:
-        """Handle publishing failure."""
-        attempts = "" if r.attempt < 1 else f" after {r.attempt} attempts"
-        msg = f"Failed to publish {len(batch)} " + f"envelopes{attempts}; result: {r}"
-        _error(msg)
+    def _on_failure(
+        self,
+        batch: Sequence[p.Envelope],
+        r: p.PublishResult,
+    ) -> None:
         # TODO: saving batches to disk and sending them later
+        pass
 
 
 def _create_batches(
@@ -548,7 +569,7 @@ def _create_batches(
     opts: Options,
 ) -> Generator[Sequence[p.Envelope], None, None]:
     """Consume the source (queue) and create batches to be published."""
-    batch: List[p.Envelope] = []
+    batch: list[p.Envelope] = []
     n = 0
     while True:
         try:
@@ -578,16 +599,23 @@ class MockPublisher:
     internal collection, which can be used for test asserts.
     """
 
-    def __init__(self, batch_maxsize: int = 100, result_fn: Optional[Callable[[], p.PublishResult]] = None):
-        self._data: List[p.Envelope] = []
+    def __init__(
+        self,
+        batch_maxsize: int = 100,
+        result_fn: Callable[[], p.PublishResult] | None = None,
+    ):
+        def success() -> p.PublishResult:
+            return p.PublishResult(True, 200)
+
+        self._data: list[p.Envelope] = []
         self._batch_maxsize = batch_maxsize
-        self._result_fn = lambda: p.PublishResult(True, 200) if result_fn is None else result_fn
+        self._result_fn = success if result_fn is None else result_fn
 
     @property
-    def data(self) -> List[p.Envelope]:
+    def data(self) -> list[p.Envelope]:
         return self._data
 
-    def publish(self, source: Queue[p.Envelope]) -> List[p.PublishResult]:
+    def publish(self, source: Queue[p.Envelope]) -> list[p.PublishResult]:
         i = 0
         while True:
             try:
@@ -607,11 +635,8 @@ class MockPublisher:
     def clear(self) -> None:
         self._data.clear()
 
-    def any(self, predicate: EnvelopePredicateT) -> bool:
-        for x in self._data:
-            if predicate(x):
-                return True
-        return False
+    def has_any(self, predicate: EnvelopePredicateT) -> bool:
+        return any(predicate(x) for x in self._data)
 
     def first(self, predicate: EnvelopePredicateT) -> bool:
         return False if len(self._data) == 0 else predicate(self._data[0])
@@ -620,31 +645,13 @@ class MockPublisher:
         length = len(self._data)
         return False if length == 0 else predicate(self._data[length - 1])
 
-    def all(self, predicate: EnvelopePredicateT) -> bool:
-        for x in self._data:
-            if not predicate(x):
-                return False
-        return True
+    def has_all(self, predicate: EnvelopePredicateT) -> bool:
+        return all(predicate(x) for x in self._data)
 
-    def count(self, predicate: Optional[EnvelopePredicateT] = None) -> int:
+    def count(self, predicate: EnvelopePredicateT | None = None) -> int:
         if predicate is None:
             return len(self._data)
-        return sum((1 for x in self._data if predicate(x)))
+        return sum(1 for x in self._data if predicate(x))
 
     def is_empty(self) -> int:
         return len(self._data) == 0
-
-
-_safe_print = threading.RLock()
-
-
-def _error(msg: str, ex: Optional[RuntimeError] = None) -> None:
-    """
-    Do not use `logging.exception()` here or any other logging method,
-    because telemetry can be hooked as handler in standard Python logging,
-    and therefore it could very likely lead to aggravating the issue.
-    """
-    with _safe_print:
-        now = datetime.now().strftime("%H:%M:%S.%f")
-        e = "" if ex is None else f", {ex}"
-        print(f"[{now}] {msg}{e}")

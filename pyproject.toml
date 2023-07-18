@@ -48,7 +48,7 @@ pyperf = "*"
 
 [tool.black]
 # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
-line-length = 120
+line-length = 79
 target-version = ["py311"]
 include = '\.py$'
 exclude = '''
@@ -66,30 +66,6 @@ lines_between_sections = 1
 lines_after_imports = 2
 force_sort_within_sections = true
 include_trailing_comma = true
-
-# https://mypy.readthedocs.io/en/latest/config_file.html#using-a-pyproject-toml-file
-[tool.mypy]
-python_version = "3.11"
-plugins = ["pydantic.mypy"]
-follow_imports = "silent"
-warn_return_any = true
-warn_unused_ignores = true
-warn_redundant_casts = true
-check_untyped_defs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-no_implicit_reexport = true
-ignore_missing_imports = true
-show_error_codes = true
-cache_dir = ".cache/mypy/"
-exclude = ["tests/", "examples/", "benchmarks"]
-
-# Don't fuss about missing annotations in tests
-# error: Function is missing a return type annotation
-[[tool.mypy.overrides]]
-module = "tests.*"
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
 
 # https://docs.pytest.org/en/latest/reference/customize.html#pyproject-toml
 [tool.pytest.ini_options]
@@ -147,7 +123,6 @@ select = [
   "N",  # pep8-naming
   "PIE",  # flake8-pie
   "PLE",  # Pylint Error
-  "PTH",  # flake8-use-pathlib
   "RUF",  # Ruff
   "S",  # flake8-bandit
   "SIM",  # flakes8-simplify
@@ -157,12 +132,42 @@ select = [
 cache-dir = ".cache/ruff"
 line-length = 79
 target-version = "py311"
-ignore = ["E501"]
 format = "grouped"
 ignore-init-module-imports = true
+ignore = ["E501"]
 
-#[tool.ruff.pyupgrade]
-#keep-runtime-typing = true
+  [tool.ruff.per-file-ignores]
+  "inmemory.py" = [
+    "T201", # print used in instance method 'print_data()'
+  ]
+  "protocol.py" = [
+    "N815", # mixedCase properties, because it's used in serialization
+    "A003", # 'id' property, because it's used in serialization
+  ]
+
+# https://mypy.readthedocs.io/en/latest/config_file.html#using-a-pyproject-toml-file
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+follow_imports = "silent"
+warn_return_any = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_reexport = true
+ignore_missing_imports = true
+show_error_codes = true
+cache_dir = ".cache/mypy/"
+exclude = ["tests/", "examples/", "benchmarks"]
+
+  # Don't fuss about missing annotations in tests
+  # error: Function is missing a return type annotation
+  [[tool.mypy.overrides]]
+  module = "tests.*"
+  disallow_untyped_defs = false
+  disallow_incomplete_defs = false
 
 [tool.poe.tasks]
 
@@ -183,7 +188,7 @@ ignore-init-module-imports = true
   default_item_type = "cmd"
 
   [tool.poe.tasks.test]
-  help = "Run unit tests"
+  help = "Run only unit tests"
   cmd  = "pytest tests/unit --cov=easytelemetry --no-cov-on-fail"
 
   [tool.poe.tasks.type]

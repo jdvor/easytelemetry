@@ -1,5 +1,4 @@
 from datetime import datetime
-import logging
 import os.path
 
 from dotenv import load_dotenv

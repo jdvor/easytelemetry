@@ -13,7 +13,11 @@ def _assert(result: FlushT) -> None:
         m1 = "failed to publish data to ingestion endpoint"
         if errs is None:
             return m1
-        m2 = str(errs[0]) if len(errs) == 1 else "\n".join([str(e) for e in errs])
+        m2 = (
+            str(errs[0])
+            if len(errs) == 1
+            else "\n".join([str(e) for e in errs])
+        )
         return f"{m1}\n\n{m2}"
 
     success, errors = result

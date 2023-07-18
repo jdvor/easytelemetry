@@ -7,10 +7,10 @@ and metric entries unless explicitly told to clear them.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from types import TracebackType
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeAlias, Union
+from typing import Any, TypeAlias
 
 from easytelemetry import (
     Level,
@@ -28,7 +28,59 @@ from easytelemetry import (
 )
 
 
-def build(app_name: str, setup_std_logging: bool = True, clear_std_logging_handlers: bool = False) -> InMemoryTelemetry:
+@dataclass(frozen=True)
+class LogEntry:
+    time: datetime
+    level: Level
+    source: str
+    msg: str
+    ex: BaseException | None
+    args: tuple[Any, ...] | None
+    props: PropsT | None
+
+    def __str__(self) -> str:
+        m = self.msg % self.args if self.args else self.msg
+        kw = " " + str(self.props) if self.props else ""
+        return f'[{self.time.strftime("%Y-%m-%d %T")}] {self.level} {m}{kw}'
+
+
+class Metric:
+    def __init__(self, name: str, props: PropsT | None):
+        self._name = name
+        self._props = props
+        self._data: list[MetricRecordT] = []
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def data(self) -> list[MetricRecordT]:
+        return self._data
+
+    def track(self, value: int | float) -> None:
+        self._data.append((datetime.utcnow(), value, None))
+
+    def track_extra(self, value: int | float, extra: PropsT) -> None:
+        self._data.append((datetime.utcnow(), value, extra))
+
+    def clear(self) -> None:
+        self._data.clear()
+
+    def __str__(self) -> str:
+        return self._name
+
+
+MetricRecordT: TypeAlias = tuple[datetime, float, PropsT | None]
+LogPredFuncT: TypeAlias = Callable[[LogEntry], bool] | None
+MetricPredFuncT: TypeAlias = Callable[[Metric], bool] | None
+
+
+def build(
+    app_name: str,
+    setup_std_logging: bool = True,
+    clear_std_logging_handlers: bool = False,
+) -> InMemoryTelemetry:
     """
     Build in-memory telemetry instance.
 
@@ -39,7 +91,7 @@ def build(app_name: str, setup_std_logging: bool = True, clear_std_logging_handl
         in standard :mod:`logging` module before the telemetry
         is registered as a handler too
     """
-    global_props = {
+    global_props: PropsT = {
         "app": app_name,
         "host": get_host_name(),
         "env": get_environment_name(app_name),
@@ -62,15 +114,15 @@ class InMemoryTelemetry(Telemetry):
         self._name = name
         self._global_props = global_props
         self._min_level = min_level
-        self._logs: List[LogEntry] = []
+        self._logs: list[LogEntry] = []
         self._rootlgr = InMemoryLogger(
             "_root",
             min_level,
             global_props,
             self._logs,
         )
-        self._loggers: Dict[str, Logger] = {self._rootlgr.name: self._rootlgr}
-        self._metrics: Dict[str, Metric] = {}
+        self._loggers: dict[str, Logger] = {self._rootlgr.name: self._rootlgr}
+        self._metrics: dict[str, Metric] = {}
 
     @property
     def root(self) -> Logger:
@@ -81,11 +133,11 @@ class InMemoryTelemetry(Telemetry):
         return self._name
 
     @property
-    def logs(self) -> List[LogEntry]:
+    def logs(self) -> list[LogEntry]:
         return self._logs
 
     @property
-    def metrics(self) -> Dict[str, Metric]:
+    def metrics(self) -> dict[str, Metric]:
         return self._metrics
 
     @property
@@ -96,12 +148,16 @@ class InMemoryTelemetry(Telemetry):
         self,
         name: str,
         level: Level = Level.INFO,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> Logger:
         lgr = self._loggers.get(name)
         if not lgr:
             lvl = level if level else self._min_level
-            extra = {**self._global_props, **props} if props else self._global_props
+            extra = (
+                {**self._global_props, **props}
+                if props
+                else self._global_props
+            )
             lgr = InMemoryLogger(name, lvl, extra, self._logs)
             self._loggers[name] = lgr
         return lgr
@@ -109,7 +165,7 @@ class InMemoryTelemetry(Telemetry):
     def metric(
         self,
         name: str,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> MetricFuncT:
         m = self._metrics.get(name)
         if not m:
@@ -120,7 +176,7 @@ class InMemoryTelemetry(Telemetry):
     def metric_extra(
         self,
         name: str,
-        props: Optional[PropsT] = None,
+        props: PropsT | None = None,
     ) -> MetricFuncWithPropsT:
         """Get or create a metric track function of given name."""
         m = self._metrics.get(name)
@@ -149,25 +205,19 @@ class InMemoryTelemetry(Telemetry):
         print("--- Metrics ---")
         for name, mtr in self._metrics.items():
             print(f":: {name}")
-            for time, value in mtr.data:
+            for time, value, _ in mtr.data:
                 print(f'\t[{time.strftime("%Y-%m-%d %T")}] {value}')
 
     def has_log(self, predicate: Callable[[LogEntry], bool]) -> bool:
-        for le in self._logs:
-            if predicate(le):
-                return True
-        return False
+        return any(predicate(le) for le in self._logs)
 
     def has_metric(self, predicate: Callable[[Metric], bool]) -> bool:
-        for m in self._metrics.values():
-            if predicate(m):
-                return True
-        return False
+        return any(predicate(m) for m in self._metrics.values())
 
     def has_metric_name(self, name: str) -> bool:
-        return name in self._metrics.keys()
+        return name in self._metrics
 
-    def log_count(self, predicate: Optional[Callable[[LogEntry], bool]] = None) -> int:
+    def log_count(self, predicate: LogPredFuncT | None = None) -> int:
         if predicate is None:
             return len(self._logs)
         acc = 0
@@ -175,7 +225,7 @@ class InMemoryTelemetry(Telemetry):
             acc += int(predicate(le))
         return acc
 
-    def metric_count(self, predicate: Optional[Callable[[Metric], bool]] = None) -> int:
+    def metric_count(self, predicate: MetricPredFuncT = None) -> int:
         if predicate is None:
             return len(self._metrics)
         acc = 0
@@ -190,7 +240,7 @@ class InMemoryLogger(Logger):
         name: str,
         min_level: Level,
         props: PropsT,
-        logs: List[LogEntry],
+        logs: list[LogEntry],
     ):
         self._name = name
         self._level = min_level
@@ -246,9 +296,9 @@ class InMemoryLogger(Logger):
         source: str,
         level: Level,
         msg: str,
-        args: Optional[Tuple[Any]],
+        args: tuple[Any, ...] | None,
         props: PropsT,
-        ex: Optional[BaseException] = None,
+        ex: BaseException | None = None,
     ) -> None:
         props = merge_props(self._props, props)
         entry = LogEntry(
@@ -261,49 +311,3 @@ class InMemoryLogger(Logger):
             props=props,
         )
         self._logs.append(entry)
-
-
-@dataclass(frozen=True)
-class LogEntry:
-    time: datetime
-    level: Level
-    source: str
-    msg: str
-    ex: Optional[BaseException]
-    args: Optional[Tuple[Any]]
-    props: Optional[PropsT]
-
-    def __str__(self) -> str:
-        m = self.msg % self.args if self.args else self.msg
-        kw = " " + str(self.props) if self.props else ""
-        return f'[{self.time.strftime("%Y-%m-%d %T")}] {self.level} {m}{kw}'
-
-
-MetricRecordT: TypeAlias = Tuple[datetime, float, Optional[PropsT]]
-
-
-class Metric:
-    def __init__(self, name: str, props: Optional[PropsT]):
-        self._name = name
-        self._props = props
-        self._data: List[MetricRecordT] = []
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def data(self) -> List[MetricRecordT]:
-        return self._data
-
-    def track(self, value: Union[int, float]) -> None:
-        self._data.append((datetime.utcnow(), value, None))
-
-    def track_extra(self, value: Union[int, float], extra: PropsT) -> None:
-        self._data.append((datetime.utcnow(), value, extra))
-
-    def clear(self) -> None:
-        self._data.clear()
-
-    def __str__(self) -> str:
-        return self._name
