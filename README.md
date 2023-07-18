@@ -1,5 +1,7 @@
 # easytelemetry
 
+[![Tests & Quality](https://github.com/jdvor/easytelemetry/actions/workflows/test.yml/badge.svg)](https://github.com/jdvor/easytelemetry/actions/workflows/test.yml)
+
 This package aims to provide easiest way how to use both logging
 and metric telemetry for your python code with [Azure Application Insights][1]
 SaaS as a backing store for telemetry.
