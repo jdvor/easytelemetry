@@ -60,7 +60,7 @@ Most things can be configured on `AppInsightsTelemetry` by passing `easytelemetr
 to `easytelemetry.appinsights.build` build method.
 
 Alternatively the same build method accepts configure function `Callable[[Options], None]` in which you can change
-just one or two properties while all others are populated by defaults and derived from environment properties.
+just one or two properties while all others are populated by defaults and derived from environment variables.
 
 ```python
 from easytelemetry import Telemetry, Level
@@ -106,10 +106,10 @@ By default, these dimensions are added to every logger or metric:
 | Application name    | app                   | passed to build function                                                                | -             |
 | Environment name    | env                   | environment variables {AppName}_ENVIRONMENT, ENVIRONMENT or AZURE_FUNCTIONS_ENVIRONMENT | prod          |
 | Host name           | ai.cloud.roleInstance | environment variable COMPUTERNAME or `platform.node()`                                  | -             |
-| Host IP address     | ai.location.ip        | `socket.gethostbyname()`                                                                | -             |
+| Host IP address     | ai.location.ip        | `socket.gethostbyname()`                                                                | 0.0.0.0       |
 | Application version | ai.application.ver    | environment variables {AppName}_APP_VERSION or APP_VERSION                              | 0.0.0.0       |
 
-Methods for creating loggers, metrics or even individual entries have parameter props `Optional[Dict[str, Any]]`,
+Methods for creating loggers, metrics or even individual entries have argument `props: dict[str, str | int | float | bool]`,
 which you can use to enrich already defined custom dimensions. Global dimensions mentioned above are merged together
 with local ones before the log entry or metric entry is published.
 
