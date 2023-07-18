@@ -167,7 +167,7 @@ class Options:
     use_atexit: bool = False
 
     CONNECTION_STRING_ENV_VAR = "APPLICATIONINSIGHTS_CONNECTION_STRING"
-    LOCAL_STORAGE_ENV_VAR = "APPLICATIONINSIGHTS_USE_LOCAL_STORAGE"
+    LOCAL_STORAGE_ENV_VAR = "APPLICATIONINSIGHTS_LOCAL_STORAGE"
     _ERRMSG_ENVVAR = (
         "Application Insights connection string environment "
         + "variable is not set"

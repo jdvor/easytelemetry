@@ -73,6 +73,6 @@ jobs:
       - name: Run tests
         env:
           APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
-          APPLICATIONINSIGHTS_USE_LOCAL_STORAGE: False
+          APPLICATIONINSIGHTS_LOCAL_STORAGE: False
           ENVIRONMENT: test
         run: poetry run pytest --cov=easytelemetry --no-cov-on-fail
