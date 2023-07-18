@@ -167,7 +167,7 @@ class Options:
     use_atexit: bool = False
 
     CONNECTION_STRING_ENV_VAR = "APPLICATIONINSIGHTS_CONNECTION_STRING"
-    USE_LOCAL_STORAGE_ENV_VAR = "APPLICATIONINSIGHTS_USE_LOCAL_STORAGE"
+    LOCAL_STORAGE_ENV_VAR = "APPLICATIONINSIGHTS_USE_LOCAL_STORAGE"
     _ERRMSG_ENVVAR = (
         "Application Insights connection string environment "
         + "variable is not set"
@@ -182,8 +182,9 @@ class Options:
         conn_str = get_env_var(app_name, Options.CONNECTION_STRING_ENV_VAR)
         if conn_str is None:
             raise OSError(Options._ERRMSG_ENVVAR)
-        local = get_env_var(app_name, Options.USE_LOCAL_STORAGE_ENV_VAR)
-        return Options.from_connection_str(app_name, conn_str, bool(local))
+        local = get_env_var(app_name, Options.LOCAL_STORAGE_ENV_VAR)
+        local = False if local is None else local
+        return Options.from_connection_str(app_name, conn_str, local)
 
     @staticmethod
     def from_connection_str(
@@ -197,22 +198,24 @@ class Options:
         """
         cs = ConnectionString.from_str(conn_str)
 
-        if isinstance(use_local, bool):
-            if use_local:
+        match use_local:
+            case True | "True" | "true" | "1":
+                use_local_storage = True
                 storage_path = ensure_local_storage(app_name)
-            else:
+            case False | "False" | "false" | "0":
+                use_local_storage = False
                 storage_path = None
-        else:
-            if use_local:
-                if not os.path.isdir(use_local):
-                    raise OSError(Options._ERRMSG_STORAGE)
+            case _:
+                use_local_storage = True
                 storage_path = use_local
-                use_local = True
-            else:
-                storage_path = None
-                use_local = False
+                if not os.path.isdir(storage_path):
+                    raise OSError(Options._ERRMSG_STORAGE)
 
-        return Options(cs, use_local, storage_path)
+        return Options(
+            connection=cs,
+            use_local_storage=use_local_storage,
+            local_storage_path=storage_path,
+        )
 
 
 FlushT: TypeAlias = tuple[bool | None, list[Exception] | None]
