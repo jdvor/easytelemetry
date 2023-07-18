@@ -5,22 +5,37 @@ to construct JSON body of HTTP request to Application Insights.
 
 from __future__ import annotations
 
-import hashlib
-import os
-import re
-import traceback
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
+import gzip
+import hashlib
+import os
+import re
+import time
+import traceback
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 import orjson
+import requests
 
-# https://github.com/microsoft/ApplicationInsights-dotnet/tree/master/BASE/Schema/PublicSchema
+
+# https://github.com/microsoft/ApplicationInsights-dotnet/tree/master/BASE
+# /Schema/PublicSchema
 
 MAX_KEY_LENGTH = 128
 MAX_VALUE_LENGTH = 8192
-SAFE_STR_REGEX = re.compile(f"^[a-zA-Z][\\w]{{0,{MAX_KEY_LENGTH - 1}}}$")
+SAFE_STR_REGEX = re.compile(f"^[a-zA-Z]\\w{{0,{MAX_KEY_LENGTH - 1}}}$")
+
+GZIP_COMPRESS_LEVEL = 6
+GZIP_THRESHOLD_BYTES = 1000
+MAX_ATTEMPTS = 3
+DELAY_BETWEEN_ATTEMPTS_SECS = 0.5
+
+UNSPECIFIED_ERROR = -1
+CONNECTION_ERROR = 0
+SUCCESS_HTTP_STATUSES = [200]
+RETRYABLE_HTTP_STATUSES = [CONNECTION_ERROR, 500, 502]
 
 
 def is_safe_key(s: str) -> bool:
@@ -31,6 +46,119 @@ def is_safe_key(s: str) -> bool:
 def sanitize_value(s: str) -> str:
     """Make sure the string cannot exceed allowed length."""
     return s[:MAX_VALUE_LENGTH] if s and len(s) > MAX_VALUE_LENGTH else s
+
+
+def serialize(data: Union[Sequence[Envelope], Envelope]) -> bytes:
+    def convert(obj: Any) -> str:
+        if isinstance(obj, timedelta):
+            return str(obj)
+        type_name = obj.__class__.__name__
+        raise TypeError(f"Type '{type_name}' is not serializable.")
+
+    jsopts = orjson.OPT_NAIVE_UTC | orjson.OPT_UTC_Z
+    return orjson.dumps(data, default=convert, option=jsopts)
+
+
+def deserialize(data: bytes) -> Union[ApiResponseBody, str, None]:
+    def errors(node: Any) -> List[ApiResponseError]:
+        result = []
+        if "errors" in node:
+            for e in node["errors"]:
+                err = ApiResponseError(
+                    index=e["index"],
+                    statusCode=e["statusCode"],
+                    message=e["message"],
+                )
+                result.append(err)
+        return result
+
+    if not data or len(data) == 0:
+        return None
+    try:
+        obj = orjson.loads(data)
+        return ApiResponseBody(
+            itemsReceived=obj["itemsReceived"],
+            itemsAccepted=obj["itemsAccepted"],
+            errors=errors(obj),
+        )
+    except RuntimeError:
+        return data.decode("utf-8")
+
+
+def http_send(url: str, body: bytes, headers: Dict[str, str], attempt: int) -> PublishResult:
+    try:
+        resp = requests.post(url, headers=headers, data=body)
+
+        if resp.status_code in SUCCESS_HTTP_STATUSES:
+            return PublishResult(True, resp.status_code, attempt)
+
+        resp_body = deserialize(resp.content)
+        return PublishResult(False, resp.status_code, attempt, resp_body)
+
+    except requests.exceptions.ConnectionError as ce:
+        return PublishResult(False, CONNECTION_ERROR, attempt, exception=ce)
+
+    except Exception as e:
+        return PublishResult(False, UNSPECIFIED_ERROR, attempt, exception=e)
+
+
+def send_batch(
+    batch: Sequence[Envelope],
+    endpoint: str,
+    max_attempts: int = MAX_ATTEMPTS,
+    delay_between_attempts_secs: float = DELAY_BETWEEN_ATTEMPTS_SECS,
+    gzip_threshold: int = GZIP_THRESHOLD_BYTES,
+) -> PublishResult:
+    """
+    Serialize and send the batch to ingestion endpoint.
+
+    :param batch: sequence of envelopes to publish
+    :param endpoint: endpoint URL for publishing
+    :param max_attempts: maximum number of publish attempts.
+        Use 0 to turn retries off.
+    :param delay_between_attempts_secs: wait between publish attempts
+        this number of seconds. Use 0 to turn retries off.
+    :param gzip_threshold: if serialized payload is larger than this threshold,
+        than it will be gzipped. Use -1 for no compression regardless
+        of the payload size. The value represents number of bytes.
+    :return: object describing publish result
+    """
+    body = serialize(batch)
+    if 0 < gzip_threshold < len(body):
+        body = gzip.compress(body, compresslevel=GZIP_COMPRESS_LEVEL)
+        headers = {
+            "Content-Encoding": "gzip",
+            "Content-Type": "application/json",
+            "User-Agent": "easytelemetry",
+        }
+    else:
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "easytelemetry",
+        }
+
+    if max_attempts > 1 and delay_between_attempts_secs > 0:
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            result = http_send(endpoint, body, headers, attempt)
+            end = result.success or attempt == MAX_ATTEMPTS or result.status_code not in RETRYABLE_HTTP_STATUSES
+            if end:
+                return result
+            time.sleep(delay_between_attempts_secs)
+
+        assert False, "code should not reach here ('attempt == MAX_ATTEMPTS')"
+    else:
+        return http_send(endpoint, body, headers, 1)
+
+
+@dataclass
+class PublishResult:
+    """Describes the result of batch publish attempt."""
+
+    success: bool
+    status_code: int
+    attempt: int = 1
+    response_body: Union[ApiResponseBody, str, None] = None
+    exception: Optional[Exception] = None
 
 
 class SeverityLevel(Enum):
@@ -213,7 +341,9 @@ class ExceptionData:
         stack = ExceptionData._parsed_stack(ex)
         details = ExceptionDetails(ex_name, str(ex), stack)
         problem_id = ExceptionData._problem_id(
-            ex_name, stack[0].fileName, stack[0].line,
+            ex_name,
+            stack[0].fileName,
+            stack[0].line,
         )
         return ExceptionData(
             [details],
@@ -329,7 +459,9 @@ class MetricData:
 
     @staticmethod
     def create(
-        name: str, value: float, properties: Optional[Dict[str, str]] = None,
+        name: str,
+        value: float,
+        properties: Optional[Dict[str, str]] = None,
     ) -> MetricData:
         point = DataPoint(name, value)
         return MetricData([point], properties=properties)
@@ -601,7 +733,8 @@ class TagKey:
     CLOUD_ROLE_INSTANCE = "ai.cloud.roleInstance"
 
     # SDK version.
-    # See https://github.com/Microsoft/ApplicationInsights-Home/blob/master/SDK-AUTHORING.md#sdk-version-specification
+    # See https://github.com/Microsoft/ApplicationInsights-Home/blob/master
+    # /SDK-AUTHORING.md#sdk-version-specification
     # for information.
     # SDK_VER = "ai.internal.sdkVersion"
 
@@ -633,7 +766,8 @@ class Envelope:
     JSON_OPTIONS = orjson.OPT_NAIVE_UTC | orjson.OPT_UTC_Z
 
     # Type name of telemetry data item.
-    # Microsoft.ApplicationInsights.(Exception|Message|Event|Metric|RemoteDependency|Request)
+    # Microsoft.ApplicationInsights.(
+    # Exception|Message|Event|Metric|RemoteDependency|Request)
     name: str
 
     # Event date time when telemetry item was created.
@@ -692,40 +826,3 @@ class ApiResponseBody:
     itemsReceived: int  # noqa: N815
     itemsAccepted: int  # noqa: N815
     errors: List[ApiResponseError]
-
-
-def serialize(data: Union[Sequence[Envelope], Envelope]) -> bytes:
-    def convert(obj: Any) -> str:
-        if isinstance(obj, timedelta):
-            return str(obj)
-        type_name = obj.__class__.__name__
-        raise TypeError(f"Type '{type_name}' is not serializable.")
-
-    jsopts = orjson.OPT_NAIVE_UTC | orjson.OPT_UTC_Z
-    return orjson.dumps(data, default=convert, option=jsopts)
-
-
-def deserialize(data: bytes) -> Union[ApiResponseBody, str, None]:
-    def errors(node: Any) -> List[ApiResponseError]:
-        result = []
-        if "errors" in node:
-            for e in node["errors"]:
-                err = ApiResponseError(
-                    index=e["index"],
-                    statusCode=e["statusCode"],
-                    message=e["message"],
-                )
-                result.append(err)
-        return result
-
-    if not data or len(data) == 0:
-        return None
-    try:
-        obj = orjson.loads(data)
-        return ApiResponseBody(
-            itemsReceived=obj["itemsReceived"],
-            itemsAccepted=obj["itemsAccepted"],
-            errors=errors(obj),
-        )
-    except RuntimeError:
-        return data.decode("utf-8")

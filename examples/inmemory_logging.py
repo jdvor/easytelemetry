@@ -1,15 +1,12 @@
 import random
 from time import sleep
 
-from shared import stdout, wire_up_src_dir
-
-wire_up_src_dir()
-
-from dotenv import load_dotenv
+from shared import ensure_env, stdout
 
 from easytelemetry.inmemory import build
 
-load_dotenv(dotenv_path=".env", verbose=True)
+
+ensure_env()
 
 
 def alpha():
@@ -24,7 +21,7 @@ def rand_float(a: int, b: int) -> float:
     return random.randrange(1000 * a, 1000 * b) / 1000
 
 
-telemetry = build("inmem")
+telemetry = build("example")
 
 apples = telemetry.metric_incr("apples")
 pears = telemetry.metric_incr("pears", props={"orange": 487.2})
@@ -58,7 +55,6 @@ telemetry.root.error(
 telemetry.root.critical("critical message %s", 1)
 
 for i in range(0, 6):
-
     apples()
     apples()
     apples()

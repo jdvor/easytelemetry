@@ -1,13 +1,10 @@
-from shared import wire_up_src_dir
+from shared import ensure_env
 
-wire_up_src_dir()
+from easytelemetry import Telemetry
+from easytelemetry.appinsights import build
 
-from dotenv import load_dotenv
 
-from easytelemetry.appinsights.impl import build
-from easytelemetry.interface import Telemetry
-
-load_dotenv(dotenv_path=".env", verbose=True)
+ensure_env()
 
 
 def alpha():
@@ -18,11 +15,10 @@ def beta():
     return alpha()
 
 
-with build("exceptional") as telemetry:
+with build("example") as telemetry:
     telemetry: Telemetry
 
-    print(telemetry.describe())
-
+    # print(telemetry.describe())
     try:
         beta()
     except ZeroDivisionError as e:

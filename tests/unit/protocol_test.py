@@ -1,11 +1,13 @@
-import json
-import uuid
 from datetime import timedelta
+import json
+import time
+import uuid
 
-import atomics
 import pytest
+from utils import func_raise_error
 
 import easytelemetry.appinsights.protocol as p
+
 
 IS_SAFE_KEY_DATA = [
     ("alpha", True, ""),
@@ -19,8 +21,6 @@ IS_SAFE_KEY_DATA = [
     (r"lorem$", False, "unsafe characters"),
     ("a" * (p.MAX_KEY_LENGTH + 1), False, "too long"),
 ]
-
-_seq = atomics.atomic(8, atomics.INT)
 
 
 @pytest.mark.parametrize(("test", "expected", "msg"), IS_SAFE_KEY_DATA)
@@ -71,7 +71,7 @@ def test_serialize_dependency():
         duration=timedelta(milliseconds=1281),
         success=True,
         id="posts/user/1584",
-        data=r"SELECT * FROM posts WHERE user = @user_id",
+        data=r"posts WHERE user = @user_id",
         target="datalake1.example.com",
         type="SQL",
         properties={"alpha": "1"},
@@ -100,9 +100,9 @@ def test_serialize_request():
     assert p.Envelope.REQUEST_NAME in js
 
 
-def test_serialize_exception(erroneous):
+def test_serialize_exception():
     try:
-        erroneous.divide_one_by(0)
+        func_raise_error()
     except ZeroDivisionError as ex:
         envelope = p.ExceptionData.create(
             ex,
@@ -128,7 +128,7 @@ def is_valid_json(js: str) -> bool:
 
 def enrich_envelope(e: p.Envelope) -> None:
     e.iKey = str(uuid.uuid4())
-    e.seq = str(_seq.fetch_inc())
+    e.seq = str(time.time_ns() // 1_000_000)
     e.tags = {
         p.TagKey.OPERATION_ID: str(uuid.uuid4()),
         p.TagKey.OPERATION_PARENT_ID: "0d96cb1c-38d2-41ed-9ffd-801c0862049c",

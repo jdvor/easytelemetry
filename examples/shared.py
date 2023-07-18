@@ -1,13 +1,25 @@
-import os
-import sys
 from datetime import datetime
+import logging
+import os.path
+
+from dotenv import load_dotenv
+
+from easytelemetry.appinsights import Options
 
 
-def wire_up_src_dir() -> None:
-    root = os.path.abspath(os.path.dirname(__file__))
-    src = os.path.normpath(os.path.join(root, "../src"))
-    if os.path.isdir(src) and src not in sys.path:
-        sys.path.append(src)
+def ensure_env() -> None:
+    csname = Options.CONNECTION_STRING_ENV_VAR
+    if os.environ.get(csname):
+        return
+    wd = os.path.dirname(os.path.abspath(__file__))
+    loc1 = os.path.join(wd, ".env")
+    loc2 = os.path.normpath(os.path.join(wd, "../.env"))
+    for loc in [loc1, loc2]:
+        if os.path.isfile(loc):
+            load_dotenv(dotenv_path=loc)
+    if not os.environ.get(csname):
+        err = f"environment variable '{csname}' not set"
+        raise EnvironmentError(err)
 
 
 def stdout(msg: str) -> None:

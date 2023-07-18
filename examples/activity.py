@@ -1,15 +1,12 @@
-from shared import stdout, wire_up_src_dir
-
-wire_up_src_dir()
-
 from time import sleep
 
-from dotenv import load_dotenv
+from shared import ensure_env
 
-from easytelemetry.appinsights.impl import build
-from easytelemetry.interface import Telemetry
+from easytelemetry import Telemetry
+from easytelemetry.appinsights import build
 
-load_dotenv(dotenv_path=".env", verbose=True)
+
+ensure_env()
 
 
 def alpha():
@@ -20,21 +17,17 @@ def beta():
     return alpha()
 
 
-with build("activity") as telemetry:
+with build("example") as telemetry:
     telemetry: Telemetry
 
-    print(telemetry.describe())
-
-    stdout("actone")
-    with telemetry.activity("actone", props={"countdown": 123}):
+    # print(telemetry.describe())
+    with telemetry.activity("actone"):
         sleep(0.4)
-
-    stdout("acttwo")
-    try:
-        with telemetry.activity("acttwo"):
-            sleep(0.2)
-            beta()
-    except ZeroDivisionError:
-        pass
+        try:
+            with telemetry.activity("acttwo"):
+                sleep(0.2)
+                beta()
+        except ZeroDivisionError:
+            pass
 
 print("done")

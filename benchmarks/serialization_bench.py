@@ -1,11 +1,14 @@
 import pyperf
 from shared import sample_envelope
 
+import easytelemetry.appinsights.protocol as p
+
+
 envelope = sample_envelope()
 
 runner = pyperf.Runner()
 runner.timeit(
-    name="to_json_bytes",
-    stmt="envelope.to_json_bytes()",
-    globals={"envelope": envelope},
+    name="serialize envelope",
+    stmt="p.serialize(envelope)",
+    globals={"envelope": envelope, "p": p},
 )

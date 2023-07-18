@@ -1,19 +1,16 @@
-from shared import stdout, wire_up_src_dir
+from shared import ensure_env, stdout
 
-wire_up_src_dir()
+from easytelemetry import Level, Telemetry
+from easytelemetry.appinsights import build
 
-from dotenv import load_dotenv
 
-from easytelemetry.appinsights.impl import build
-from easytelemetry.interface import Level, Telemetry
+ensure_env()
 
-load_dotenv(dotenv_path=".env", verbose=True)
-
-with build("derived") as telemetry:
+with build("example") as telemetry:
     telemetry: Telemetry
 
     lgr = telemetry.logger("inderived", Level.WARN, {"aspect": "16:9"})
-    print(telemetry.describe())
+    # print(telemetry.describe())
     i = 0
     loop = True
     while loop:

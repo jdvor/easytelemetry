@@ -1,27 +1,34 @@
-from shared import stdout, wire_up_src_dir
+from shared import ensure_env, stdout
 
-wire_up_src_dir()
+from easytelemetry import Telemetry
+from easytelemetry.appinsights import Options, build
 
-from dotenv import load_dotenv
 
-from easytelemetry.appinsights.impl import build
-from easytelemetry.interface import Telemetry
+ensure_env()
 
-load_dotenv(dotenv_path=".env", verbose=True)
 
-with build("simple") as telemetry:
+def myfunc1(n: int) -> None:
+    telemetry.root.info("informational message %s", n)
+
+
+def configure(opts: Options) -> None:
+    opts.debug = True
+
+
+with build("example", configure) as telemetry:
     telemetry: Telemetry
 
     print(telemetry.describe())
+    print("---")
 
     i = 0
     loop = True
     while loop:
         i += 1
-        stdout(str(i))
+        stdout(f"i: {i}")
 
         telemetry.root.debug("debugging message %s", i)
-        telemetry.root.info("informational message %s", i)
+        myfunc1(i)
         telemetry.root.info(
             "informational message %s with custom dimensions",
             i,
@@ -38,6 +45,9 @@ with build("simple") as telemetry:
         )
         telemetry.root.critical("critical message %s", i)
 
+        print()
         cli_input = input("next? [Y/n]")
         cli_input = cli_input.strip().lower()
         loop = cli_input == "y" or cli_input == "" or cli_input == "yes"
+
+print("done")

@@ -1,94 +1,209 @@
-[build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+[tool.poetry]
+name = "easytelemetry"
+version = "0"
+description = "Telemetry package (logging and metrics) with minimal and opinionated API using Application Insights as back-end."
+authors = ["Jan Dvorak <jandvorak.public@gmail.com>"]
+readme = "README.md"
+packages = [
+  { include = "easytelemetry" },
+]
 
-# https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
+[build-system]
+requires = ["poetry-core==1.4.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dependencies]
+python = ">=3.11, <3.12"
+orjson = "*"
+requests = "*"
+
+[tool.poetry.group.dev.dependencies]
+# Formatting
+black = ">=22.8"
+isort = "^5.11"
+pydocstyle = "*"
+# Linters + plugins
+ruff = "*"
+# Typing
+mypy = "*"
+pydantic = "*"
+# Security
+bandit = { version = "^1.7", extras = ["toml"] }
+pip-audit = "^2.4"
+# Testing
+pytest = "^7.1"
+pytest-cov = "^4.0"
+pytest-lazy-fixture = "^0.6.3"
+coverage = { version = "^7.0", extras = ["toml"] }
+# Documentation
+sphinx = "^5.0"
+sphinx_rtd_theme = "^1.1"
+myst-parser = ">=0.18.0, <0.19"
+# CI
+bumpver = ">=2022.1120"
+poethepoet = "^0.18.1"
+python-dotenv = "*"
+# Performance
+pyperf = "*"
+
 [tool.black]
-line-length = 80
-target-version = ["py38"]
+# https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
+line-length = 120
+target-version = ["py311"]
 include = '\.py$'
 exclude = '''
-/(
+(
   \.git
   |__pycache__
-  |\.mypy_cache
-)/
+)
 '''
 
 # https://pycqa.github.io/isort/docs/configuration/config_files.html
 [tool.isort]
 profile = "black"
-line_length = 80
+line_length = 79
+lines_between_sections = 1
+lines_after_imports = 2
+force_sort_within_sections = true
 include_trailing_comma = true
-
-# https://docs.pytest.org/en/latest/reference/customize.html#pyproject-toml
-[tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "--strict -p no:warnings"
-testpaths = [
-  "tests",
-]
-markers = [
-  "slow: Slow tests",
-  "integration: Dependent on some external source and may not suitable to run without setup & supervision",
-]
 
 # https://mypy.readthedocs.io/en/latest/config_file.html#using-a-pyproject-toml-file
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
 follow_imports = "silent"
 warn_return_any = true
-warn_unused_configs = true
 warn_unused_ignores = true
+warn_redundant_casts = true
 check_untyped_defs = true
 disallow_untyped_defs = true
+disallow_incomplete_defs = true
 no_implicit_reexport = true
 ignore_missing_imports = true
 show_error_codes = true
+cache_dir = ".cache/mypy/"
+exclude = ["tests/", "examples/", "benchmarks"]
 
-# https://flake8.pycqa.org/en/latest/user/configuration.html
-[tool.flake8]
-max-line-length = 80
-max-doc-length = 80
-max-complexity = 10
-max-function-length = 100  # flake8-functions
-max-parameters-amount = 6  # flake8-functions
-max-returns-amount = 5     # flake8-functions
-inline-quotes = "double"   # flake8-quotes
-ignore = [
-  "D100",  # Missing docstring in public module
-  "D101",  # Missing docstring in public class
-  "D102",  # Missing docstring in public method
-  "D103",  # Missing docstring in public function
-  "D104",  # Missing docstring in public package
-  "D105",  # Missing docstring in magic method
-  "D106",  # Missing docstring in public nested class
-  "D107",  # Missing docstring in __init__
-  "D205",  # 1 blank line required between summary line and description
-  "D400",  # First line should end with a period
-  "E402",  # Module level import not at top of file
-  "E501",  # Line too long [recommended by flake8-length for urls]
-  "W503",  # Line break before binary operator [black collision]
-  "W505",  # doc line too long [recommended by flake8-length for urls]
-  "C813",  # Missing trailing comma in Python 3 [black collision]
+# Don't fuss about missing annotations in tests
+# error: Function is missing a return type annotation
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+# https://docs.pytest.org/en/latest/reference/customize.html#pyproject-toml
+[tool.pytest.ini_options]
+#asyncio_mode = 'auto'
+minversion = "7.1"
+testpaths = [
+  "tests/",
 ]
-exclude = [
-  ".git",
-  "__pycache__",
-  ".mypy_cache",
-  "dist",
-  "project"
+addopts = [
+  "-ra",
+  "--capture=no",
+  "--strict-markers",
+  "--cov-report=term-missing:skip-covered",
+  "--no-cov-on-fail",
 ]
-require-plugins = [
-  "flake8-commas",
-  "flake8-length",
-  "flake8-quotes",
-  "flake8-functions",
-  "flake8-pytest-style",
+markers = [
+  "slow: Slow tests",
+  "integration: Dependent on some external source and may not be suitable to run without setup & supervision",
+]
+cache_dir = ".cache/pytest/"
+#filterwarnings = [
+#  "ignore::pytest.PytestConfigWarning" # Unknown config option: asyncio_mode
+#]
+
+# https://coverage.readthedocs.io/en/latest/config.html
+[tool.coverage.run]
+branch = true
+data_file = ".cache/coverage"
+omit = [
+  ".venv/*",
+  "tests/*",
+  "benchmarks/*",
+  "examples/*",
+  "*/__main__.py",
 ]
 
-[tool.bandit]
-skips = [
-  "B101",  # assert
-  "B104",  # 0.0.0.0 binding
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "@overload",
+  "raise NotImplementedError",
+  "except DistributionNotFound",
+  "TYPE_CHECKING",
 ]
+
+[tool.ruff]
+select = [
+  "A",  # flake8-builtins
+  "ARG",  # flake8-unused-arguments
+  "B",  # flake8-bugbear
+  "C4",  # flake8-comprehensions
+  "C90",  # mccabe
+  "E",  # pycodestyle
+  "F",  # Pyflakes
+  "N",  # pep8-naming
+  "PIE",  # flake8-pie
+  "PLE",  # Pylint Error
+  "PTH",  # flake8-use-pathlib
+  "RUF",  # Ruff
+  "S",  # flake8-bandit
+  "SIM",  # flakes8-simplify
+  "T20", # flake8-print
+  "UP",  # pyupgrade
+]
+cache-dir = ".cache/ruff"
+line-length = 79
+target-version = "py311"
+ignore = ["E501"]
+format = "grouped"
+ignore-init-module-imports = true
+
+#[tool.ruff.pyupgrade]
+#keep-runtime-typing = true
+
+[tool.poe.tasks]
+
+  [tool.poe.tasks.clean]
+  help = "Remove generated files"
+  cmd  = """
+    rm -rf .coverage
+           .mypy_cache
+           .pytest_cache
+           ./**/__pycache__
+           dist
+           htmlcov
+  """
+
+  [tool.poe.tasks.format]
+  help = "Run formating tools on the code base"
+  sequence  = ["isort .", "black ."]
+  default_item_type = "cmd"
+
+  [tool.poe.tasks.test]
+  help = "Run unit tests"
+  cmd  = "pytest tests/unit --cov=easytelemetry --no-cov-on-fail"
+
+  [tool.poe.tasks.type]
+  help = "Run the mypy type checker"
+  cmd  = "mypy ."
+
+  [tool.poe.tasks.lint]
+  help = "Run linter"
+  cmd  = "ruff easytelemetry"
+
+  [tool.poe.tasks.style]
+  help = "Validate code style"
+  sequence = ["isort . --check --diff --quiet", "black . --check --diff --quiet"]
+  default_item_type = "cmd"
+
+  [tool.poe.tasks.security]
+  help = "Validate code security"
+  sequence = ["bandit -r .", "pip-audit"]
+  default_item_type = "cmd"
+
+  [tool.poe.tasks.bumpver]
+  help = "Update version"
+  cmd  = "bumpver update"

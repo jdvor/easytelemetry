@@ -2,15 +2,33 @@ from __future__ import annotations
 
 import pytest
 
+from easytelemetry import Level
+from easytelemetry.appinsights import (
+    AppInsightsTelemetry,
+    ConnectionString,
+    MockPublisher,
+    Options,
+    build,
+)
 
-@pytest.fixture()
-def erroneous() -> Erroneous:
-    return Erroneous()
+
+def create_options() -> Options:
+    cs = ConnectionString(instrumentation_key="00000000-0000-0000-0000-000000000000")
+    return Options(connection=cs, min_level=Level.DEBUG)
 
 
-class Erroneous:
-    def divide_one_by(self, divider: int) -> float:
-        return self._inner(divider)
+def create_sut() -> (AppInsightsTelemetry, MockPublisher):
+    options = create_options()
+    pub = MockPublisher()
+    ait = build("tests", options=options, publisher=pub)
+    return ait, pub
 
-    def _inner(self, divider: int) -> float:
-        return 1 / divider
+
+@pytest.fixture
+def options() -> Options:
+    return create_options()
+
+
+@pytest.fixture
+def sut() -> (AppInsightsTelemetry, MockPublisher):
+    return create_sut()

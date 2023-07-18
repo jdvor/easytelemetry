@@ -1,68 +1,66 @@
-import uuid
 from datetime import timedelta
+import time
+import uuid
 
-import atomics
+import pytest
 
+from easytelemetry.appinsights import Options
 import easytelemetry.appinsights.protocol as p
-from easytelemetry.appinsights.impl import Options
-from easytelemetry.appinsights.publisher import send_batch
-
-_seq = atomics.atomic(4, atomics.INT)
 
 
+@pytest.mark.integration
 def test_serialize_trace(options: Options):
+    url = options.connection.ingestion_endpoint
     batch = [create_trace(options)]
-    result = send_batch(
-        batch, options.ingestion_url, gzip_treshold=-1, max_attempts=0,
-    )
+    result = p.send_batch(batch, url, gzip_threshold=-1, max_attempts=0)
     assert result.success
 
 
+@pytest.mark.integration
 def test_serialize_metric(options: Options):
+    url = options.connection.ingestion_endpoint
     batch = [create_metric(options)]
-    result = send_batch(
-        batch, options.ingestion_url, gzip_treshold=-1, max_attempts=0,
-    )
+    result = p.send_batch(batch, url, gzip_threshold=-1, max_attempts=0)
     assert result.success
 
 
+@pytest.mark.integration
 def test_serialize_event(options: Options):
+    url = options.connection.ingestion_endpoint
     batch = [create_event(options)]
-    result = send_batch(
-        batch, options.ingestion_url, gzip_treshold=-1, max_attempts=0,
-    )
+    result = p.send_batch(batch, url, gzip_threshold=-1, max_attempts=0)
     assert result.success
 
 
+@pytest.mark.integration
 def test_serialize_dependency(options: Options):
+    url = options.connection.ingestion_endpoint
     batch = [create_dependency(options)]
-    result = send_batch(
-        batch, options.ingestion_url, gzip_treshold=-1, max_attempts=0,
-    )
+    result = p.send_batch(batch, url, gzip_threshold=-1, max_attempts=0)
     assert result.success
 
 
+@pytest.mark.integration
 def test_serialize_request(options: Options):
+    url = options.connection.ingestion_endpoint
     batch = [create_request(options)]
-    result = send_batch(
-        batch, options.ingestion_url, gzip_treshold=-1, max_attempts=0,
-    )
+    result = p.send_batch(batch, url, gzip_threshold=-1, max_attempts=0)
     assert result.success
 
 
-def test_serialize_exception(options: Options, erroneous):
-    batch = [create_exception(options, erroneous)]
-    result = send_batch(
-        batch, options.ingestion_url, gzip_treshold=-1, max_attempts=0,
-    )
+@pytest.mark.integration
+def test_serialize_exception(options: Options):
+    url = options.connection.ingestion_endpoint
+    batch = [create_exception(options)]
+    result = p.send_batch(batch, url, gzip_threshold=-1, max_attempts=0)
     assert result.success
 
 
+@pytest.mark.integration
 def test_serialize_gzip_encoding(options: Options):
+    url = options.connection.ingestion_endpoint
     batch = [create_trace(options)]
-    result = send_batch(
-        batch, options.ingestion_url, gzip_treshold=10, max_attempts=0,
-    )
+    result = p.send_batch(batch, url, gzip_threshold=10, max_attempts=0)
     assert result.success
 
 
@@ -72,7 +70,7 @@ def create_trace(options: Options) -> p.Envelope:
         severityLevel=p.SeverityLevel.INFORMATION,
         properties={"alpha": "1", "beta": "2"},
     ).to_envelope()
-    enrich_envelope(envelope, options.instrumentation_key)
+    enrich_envelope(envelope, options.connection.instrumentation_key)
     return envelope
 
 
@@ -82,7 +80,7 @@ def create_metric(options: Options) -> p.Envelope:
         value=176,
         properties={"alpha": "1"},
     ).to_envelope()
-    enrich_envelope(envelope, options.instrumentation_key)
+    enrich_envelope(envelope, options.connection.instrumentation_key)
     return envelope
 
 
@@ -92,7 +90,7 @@ def create_event(options: Options) -> p.Envelope:
         properties={"alpha": "1"},
         measurements={"elapsed_ms": 12.5, "payload_size": 878},
     ).to_envelope()
-    enrich_envelope(envelope, options.instrumentation_key)
+    enrich_envelope(envelope, options.connection.instrumentation_key)
     return envelope
 
 
@@ -102,12 +100,12 @@ def create_dependency(options: Options) -> p.Envelope:
         duration=timedelta(milliseconds=1281),
         success=True,
         id="posts/user/1584",
-        data=r"SELECT * FROM posts WHERE user = @user_id",
+        data=r"posts WHERE user = @user_id",
         target="datalake1.example.com",
         type="SQL",
         properties={"alpha": "1"},
     ).to_envelope()
-    enrich_envelope(envelope, options.instrumentation_key)
+    enrich_envelope(envelope, options.connection.instrumentation_key)
     return envelope
 
 
@@ -123,13 +121,18 @@ def create_request(options: Options) -> p.Envelope:
         properties={"alpha": "1"},
         measurements={"elapsed_ms": 121},
     ).to_envelope()
-    enrich_envelope(envelope, options.instrumentation_key)
+    enrich_envelope(envelope, options.connection.instrumentation_key)
     return envelope
 
 
-def create_exception(options: Options, erroneous) -> p.Envelope:
+def func_raise_error() -> None:
+    """Raise ZeroDivisionError"""
+    _ = 1 / 0
+
+
+def create_exception(options: Options) -> p.Envelope:
     try:
-        erroneous.divide_one_by(0)
+        func_raise_error()
     except ZeroDivisionError as ex:
         envelope = p.ExceptionData.create(
             ex,
@@ -137,7 +140,7 @@ def create_exception(options: Options, erroneous) -> p.Envelope:
             properties={"alpha": "1"},
             measurements={"elapsed_ms": 278},
         ).to_envelope()
-        enrich_envelope(envelope, options.instrumentation_key)
+        enrich_envelope(envelope, options.connection.instrumentation_key)
         return envelope
     else:
         assert False, "this should not happen"  # noqa: PT015
@@ -145,7 +148,7 @@ def create_exception(options: Options, erroneous) -> p.Envelope:
 
 def enrich_envelope(e: p.Envelope, ikey: str) -> None:
     e.iKey = ikey
-    e.seq = str(_seq.fetch_inc())
+    e.seq = str(time.time_ns() // 1_000_000)
     e.tags = {
         p.TagKey.OPERATION_ID: str(uuid.uuid4()),
         p.TagKey.OPERATION_PARENT_ID: "0d96cb1c-38d2-41ed-9ffd-801c0862049c",

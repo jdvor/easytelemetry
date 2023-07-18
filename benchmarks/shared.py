@@ -1,15 +1,16 @@
 import cProfile
-import os
-import pstats
-import random
-import sys
-import uuid
 from datetime import timedelta
 from functools import partial, wraps
+import os
+import pstats
 from pstats import SortKey
+import random
+import sys
 from typing import Optional
+import uuid
 
 import atomics
+
 
 _seq = atomics.atomic(8, atomics.INT)
 
@@ -68,7 +69,7 @@ def sample_envelope() -> p.Envelope:
         duration=timedelta(milliseconds=ms),
         success=True,
         id=f"posts/user/{user_id}",
-        data=r"SELECT * FROM posts WHERE user = @user_id",
+        data=r"posts WHERE user = @user_id",
         target="datalake1.example.com",
         type="SQL",
         properties={"alpha": alpha},
