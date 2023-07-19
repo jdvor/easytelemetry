@@ -72,8 +72,8 @@ class Metric:
 
 
 MetricRecordT: TypeAlias = tuple[datetime, float, PropsT | None]
-LogPredFuncT: TypeAlias = Callable[[LogEntry], bool] | None
-MetricPredFuncT: TypeAlias = Callable[[Metric], bool] | None
+LogPredFuncT: TypeAlias = Callable[[LogEntry], bool]
+MetricPredFuncT: TypeAlias = Callable[[Metric], bool]
 
 
 def build(
@@ -208,14 +208,20 @@ class InMemoryTelemetry(Telemetry):
             for time, value, _ in mtr.data:
                 print(f'\t[{time.strftime("%Y-%m-%d %T")}] {value}')
 
-    def has_log(self, predicate: Callable[[LogEntry], bool]) -> bool:
+    def has_log(self, predicate: LogPredFuncT) -> bool:
         return any(predicate(le) for le in self._logs)
 
-    def has_metric(self, predicate: Callable[[Metric], bool]) -> bool:
+    def all_logs(self, predicate: LogPredFuncT) -> bool:
+        return all(predicate(le) for le in self._logs)
+
+    def has_metric(self, predicate: MetricPredFuncT) -> bool:
         return any(predicate(m) for m in self._metrics.values())
 
     def has_metric_name(self, name: str) -> bool:
         return name in self._metrics
+
+    def all_metrics(self, predicate: MetricPredFuncT) -> bool:
+        return all(predicate(m) for m in self._metrics.values())
 
     def log_count(self, predicate: LogPredFuncT | None = None) -> int:
         if predicate is None:
@@ -225,7 +231,7 @@ class InMemoryTelemetry(Telemetry):
             acc += int(predicate(le))
         return acc
 
-    def metric_count(self, predicate: MetricPredFuncT = None) -> int:
+    def metric_count(self, predicate: MetricPredFuncT | None = None) -> int:
         if predicate is None:
             return len(self._metrics)
         acc = 0

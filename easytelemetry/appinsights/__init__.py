@@ -158,8 +158,8 @@ class Options:
     min_level: Level = Level.INFO
     queue_maxsize: int = 1000
     batch_maxsize: int = 100
-    publish_interval_secs: float = 20
-    publish_timeout_secs: float = 10
+    publish_interval_secs: float = 10
+    publish_timeout_secs: float = 8
     max_publishing_workers: int | None = None
     debug: bool = False
     setup_std_logging: bool = False
@@ -183,14 +183,13 @@ class Options:
         if conn_str is None:
             raise OSError(Options._ERRMSG_ENVVAR)
         local = get_env_var(app_name, Options.LOCAL_STORAGE_ENV_VAR)
-        local = False if local is None else local
         return Options.from_connection_str(app_name, conn_str, local)
 
     @staticmethod
     def from_connection_str(
         app_name: str,
         conn_str: str,
-        use_local: bool | str = False,
+        use_local: bool | str | None = False,
     ) -> Options:
         """
         Create options from connection string, which is only mandatory part
@@ -199,15 +198,21 @@ class Options:
         cs = ConnectionString.from_str(conn_str)
 
         match use_local:
-            case True | "True" | "true" | "1":
-                use_local_storage = True
-                storage_path = ensure_local_storage(app_name)
-            case False | "False" | "false" | "0":
+            case bool() as b:
+                use_local_storage = b
+                storage_path = ensure_local_storage(app_name) if b else None
+            case None:
                 use_local_storage = False
                 storage_path = None
+            case str() as s if s == "False" or s == "false" or s == "0":
+                use_local_storage = False
+                storage_path = None
+            case str() as s if s == "True" or s == "true" or s == "1":
+                use_local_storage = True
+                storage_path = ensure_local_storage(app_name)
             case _:
                 use_local_storage = True
-                storage_path = use_local
+                storage_path = str(use_local)
                 if not os.path.isdir(storage_path):
                     raise OSError(Options._ERRMSG_STORAGE)
 

@@ -1,4 +1,4 @@
-from time import sleep
+import threading
 
 from shared import ensure_env
 
@@ -8,20 +8,18 @@ from easytelemetry.appinsights import build
 
 ensure_env()
 
-with build("example") as telemetry:
-    telemetry: Telemetry
+with build("example") as t:
+    t: Telemetry
+    evt = threading.Event()
 
-    # print(telemetry.describe())
-    timer1 = telemetry.metric_timer("timer1")
-    sleep(1.2)
+    timer1 = t.metric_timer("timer1")
+    evt.wait(1.2)
     timer1()
 
-    with telemetry.metric_reusable_timer("timer2"):
-        sleep(0.7)
+    with t.metric_reusable_timer("timer2"):
+        evt.wait(0.7)
 
-    timer3 = telemetry.metric_reusable_timer("timer3")
+    timer3 = t.metric_reusable_timer("timer3")
     timer3.start()
-    sleep(0.4)
+    evt.wait(0.4)
     timer3.stop()
-
-print("done")

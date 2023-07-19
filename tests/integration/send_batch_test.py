@@ -8,6 +8,9 @@ from easytelemetry.appinsights import Options
 import easytelemetry.appinsights.protocol as p
 
 
+pytestmark = pytest.mark.timeout(15)
+
+
 @pytest.mark.integration
 def test_serialize_trace(options: Options):
     url = options.connection.ingestion_endpoint

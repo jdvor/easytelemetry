@@ -2,7 +2,6 @@ import logging
 
 from shared import ensure_env
 
-from easytelemetry import Telemetry
 from easytelemetry.appinsights import Options, build
 
 
@@ -27,13 +26,8 @@ def configure(opts: Options) -> None:
     opts.clear_std_logging_handlers = True
 
 
-with build("example", configure=configure) as telemetry:
-    telemetry: Telemetry
-
-    # print(telemetry.describe())
+with build("example", configure=configure):
     logging.info("message through standard logging 1")
     logging.warning("warning through standard logging 1")
     with_named_logger()
     with_exception()
-
-print("done")

@@ -14,16 +14,16 @@ def rand_float(a: int, b: int) -> float:
     return random.randrange(1000 * a, 1000 * b) / 1000
 
 
-with build("example") as telemetry:
-    telemetry: Telemetry
+with build("example") as t:
+    t: Telemetry
 
-    apples = telemetry.metric_incr("apples")
-    pears = telemetry.metric_incr("pears", props={"orange": 487.2})
-    millis = telemetry.metric("millis")
-    rpm = telemetry.metric("rpm")
-    sumo = telemetry.metric_extra("sumo")
+    apples = t.metric_incr("apples")
+    pears = t.metric_incr("pears", props={"orange": 487.2})
+    millis = t.metric("millis")
+    rpm = t.metric("rpm")
+    sumo = t.metric_extra("sumo")
 
-    print(telemetry.describe())
+    print(t.describe())
 
     for i in range(0, 13):
         apples()
@@ -50,4 +50,4 @@ with build("example") as telemetry:
             stdout("sleeping for 10s...")
             sleep(10)
 
-print("done")
+stdout("done")

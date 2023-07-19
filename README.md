@@ -49,7 +49,7 @@ with build("myapp") as telemetry:
 
 ### 2.1. Telemetry instance lifetime
 `AppInsightsTelemetry` collects logs and metrics into internal queue and periodically publishes them
-to Application Insights backend in (configurable) periodic interval. The default is 20 seconds.
+to Application Insights backend in (configurable) periodic interval. The default is 10 seconds.
 The publishing is done in background using `concurrent.futures.ThreadPoolExecutor` and the publishing
 does not start automatically when `AppInsightsTelemetry` is instantiated, but has to be explicitly started and stopped.
 The easiest way how to achieve it is to use context manager semantics with `AppInsightsTelemetry`

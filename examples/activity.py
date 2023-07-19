@@ -1,4 +1,4 @@
-from time import sleep
+import threading
 
 from shared import ensure_env
 
@@ -17,17 +17,16 @@ def beta():
     return alpha()
 
 
-with build("example") as telemetry:
-    telemetry: Telemetry
+try:
+    with build("example") as telemetry:
+        telemetry: Telemetry
+        evt = threading.Event()
 
-    # print(telemetry.describe())
-    with telemetry.activity("actone"):
-        sleep(0.4)
-        try:
-            with telemetry.activity("acttwo"):
-                sleep(0.2)
-                beta()
-        except ZeroDivisionError:
-            pass
-
-print("done")
+        with telemetry.activity("purchase") as act:
+            act.logger.info(f"{act.name} created", order_id="NY9584")
+            evt.wait(0.7)
+            act.logger.warn("product out of stock", sku="ACM7")
+            beta()
+except ZeroDivisionError:
+    # expected
+    pass

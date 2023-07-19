@@ -8,6 +8,9 @@ import pytest
 from easytelemetry.appinsights import AppInsightsTelemetry, FlushT
 
 
+pytestmark = pytest.mark.timeout(15)
+
+
 def _assert(result: FlushT) -> None:
     def to_str(errs):
         m1 = "failed to publish data to ingestion endpoint"

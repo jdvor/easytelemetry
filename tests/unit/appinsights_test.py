@@ -1,3 +1,4 @@
+import threading
 import time
 from typing import Tuple
 
@@ -14,6 +15,9 @@ from utils import (
 )
 
 from easytelemetry.appinsights import AppInsightsTelemetry, MockPublisher
+
+
+_evt = threading.Event()
 
 
 def _assert(pub: MockPublisher) -> None:
@@ -70,7 +74,7 @@ def test_activity_on_success(sut: Tuple[AppInsightsTelemetry, MockPublisher]):
     ait, pub = sut
     with ait:
         with ait.activity("act1"):
-            time.sleep(0.6)
+            _evt.wait(0.6)
     assert pub.count() == 2
     assert pub.has_all(lambda x: is_metric(x))
     assert pub.has_all(lambda x: contains_prop(x, "activity", "act1"))
@@ -85,7 +89,7 @@ def test_activity_on_error(sut: Tuple[AppInsightsTelemetry, MockPublisher]):
     with pytest.raises(ZeroDivisionError):
         with ait:
             with ait.activity("act2"):
-                time.sleep(0.3)
+                _evt.wait(0.3)
                 func_raise_error()
     assert pub.count(lambda x: is_metric(x)) == 2
     assert pub.count(lambda x: is_exception(x)) == 1
@@ -94,3 +98,47 @@ def test_activity_on_error(sut: Tuple[AppInsightsTelemetry, MockPublisher]):
     assert pub.has_any(lambda x: contains_datapoint(x, "act2_err"))
     assert pub.has_any(lambda x: contains_datapoint(x, "act2_ms"))
     _assert(pub)
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(65)
+def test_publishing_by_timer(
+    sut: Tuple[AppInsightsTelemetry, MockPublisher]
+) -> None:
+    ait, pub = sut
+    max_elapsed = 60
+    step = 0.3
+    records = 0
+    tag = 0
+    start = time.perf_counter()
+    with ait:
+        while (time.perf_counter() - start) <= max_elapsed:
+            tag += 1
+            records += _use_telemetry(ait, "pbt", tag)
+            _evt.wait(step)
+    _assert(pub)
+    assert pub.count() == records
+
+
+def _use_telemetry(t: AppInsightsTelemetry, name: str, tag: int) -> int:
+    n = 0
+    lgr = t.logger(name)
+    rpm = t.metric_extra(f"{name}_rpm")
+
+    lgr.info(f"info in {name}{tag}", xtag=tag)
+    n += 1
+
+    lgr.warn(f"warn in {name}{tag}", xtag=tag)
+    n += 1
+
+    lgr.error(f"error in {name}{tag}", xtag=tag)
+    n += 1
+
+    lgr.critical(f"critical in {name}{tag}", xtag=tag)
+    n += 1
+
+    v = 100 + tag / 30
+    rpm(v, {"xname": name, "xtag": tag})
+    n += 1
+
+    return n

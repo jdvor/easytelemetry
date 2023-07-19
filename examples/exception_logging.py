@@ -15,13 +15,9 @@ def beta():
     return alpha()
 
 
-with build("example") as telemetry:
-    telemetry: Telemetry
-
-    # print(telemetry.describe())
+with build("example") as t:
+    t: Telemetry
     try:
         beta()
     except ZeroDivisionError as e:
-        telemetry.root.exception(e, orderno=666, god="Quetzalcoatl")
-
-print("done")
+        t.root.exception(e, orderno=666, god="Quetzalcoatl")

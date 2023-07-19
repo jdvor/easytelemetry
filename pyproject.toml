@@ -8,10 +8,6 @@ packages = [
   { include = "easytelemetry" },
 ]
 
-[build-system]
-requires = ["poetry-core==1.4.0"]
-build-backend = "poetry.core.masonry.api"
-
 [tool.poetry.dependencies]
 python = ">=3.11, <3.12"
 orjson = "*"
@@ -34,6 +30,7 @@ pip-audit = "^2.4"
 pytest = "^7.1"
 pytest-cov = "^4.0"
 pytest-lazy-fixture = "^0.6.3"
+pytest-timeout = "*"
 coverage = { version = "^7.0", extras = ["toml"] }
 # Documentation
 sphinx = "^5.0"
@@ -45,6 +42,10 @@ poethepoet = "^0.18.1"
 python-dotenv = "*"
 # Performance
 pyperf = "*"
+
+[build-system]
+requires = ["poetry-core==1.4.0"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
@@ -184,12 +185,12 @@ exclude = ["tests/", "examples/", "benchmarks"]
 
   [tool.poe.tasks.format]
   help = "Run formating tools on the code base"
-  sequence  = ["isort .", "black ."]
+  sequence  = ["isort . --quiet", "black . --quiet"]
   default_item_type = "cmd"
 
   [tool.poe.tasks.test]
-  help = "Run only unit tests"
-  cmd  = "pytest tests/unit --cov=easytelemetry --no-cov-on-fail"
+  help = "Run only quick unit tests"
+  shell = "pytest tests/unit -m \"not slow\" --cov=easytelemetry --no-cov-on-fail"
 
   [tool.poe.tasks.type]
   help = "Run the mypy type checker"
