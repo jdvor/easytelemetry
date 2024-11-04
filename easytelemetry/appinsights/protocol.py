@@ -3,22 +3,24 @@ This module contains serialization classes required
 to construct JSON body of HTTP request to Application Insights.
 """
 
+# flake8: noqa: N815  # properties are mixed case in serialization classes
+
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 import gzip
 import hashlib
-import os
+from pathlib import Path
 import re
 import time
 import traceback
-from typing import Any, TypeAlias
+from typing import Any
 
 import orjson
-import requests  # type: ignore[import]
+import requests
 
 
 # fmt: off
@@ -40,8 +42,8 @@ CONNECTION_ERROR = 0
 SUCCESS_HTTP_STATUSES = [200]
 RETRYABLE_HTTP_STATUSES = [CONNECTION_ERROR, 500, 502]
 
-PropertiesT: TypeAlias = dict[str, str] | None
-MeasurementsT: TypeAlias = dict[str, float] | None
+PropertiesT = dict[str, str] | None
+MeasurementsT = dict[str, float] | None
 
 
 def is_safe_key(s: str) -> bool:
@@ -98,9 +100,7 @@ def http_send(
     attempt: int,
 ) -> PublishResult:
     try:
-        resp = requests.post(
-            url, headers=headers, data=body, timeout=REQUEST_TIMEOUT_SECS
-        )
+        resp = requests.post(url, headers=headers, data=body, timeout=REQUEST_TIMEOUT_SECS)
 
         if resp.status_code in SUCCESS_HTTP_STATUSES:
             return PublishResult(True, resp.status_code, attempt)
@@ -153,11 +153,7 @@ def send_batch(
     if max_attempts > 1 and delay_between_attempts_secs > 0:
         for attempt in range(1, MAX_ATTEMPTS + 1):
             result = http_send(endpoint, body, headers, attempt)
-            end = (
-                result.success
-                or attempt == MAX_ATTEMPTS
-                or result.status_code not in RETRYABLE_HTTP_STATUSES
-            )
+            end = result.success or attempt == MAX_ATTEMPTS or result.status_code not in RETRYABLE_HTTP_STATUSES
             if end:
                 return result
             time.sleep(delay_between_attempts_secs)
@@ -249,7 +245,7 @@ class EventData:
     def to_envelope(self, tags: PropertiesT = None) -> Envelope:
         return Envelope(
             name=Envelope.EVENT_NAME,
-            time=datetime.utcnow(),
+            time=datetime.now(UTC),
             data=Data(self, Envelope.EVENT_BASE_TYPE),
             tags=tags,
         )
@@ -339,7 +335,7 @@ class ExceptionData:
     def to_envelope(self, tags: PropertiesT = None) -> Envelope:
         return Envelope(
             name=Envelope.EXCEPTION_NAME,
-            time=datetime.utcnow(),
+            time=datetime.now(UTC),
             data=Data(self, Envelope.EXCEPTION_BASE_TYPE),
             tags=tags,
         )
@@ -381,14 +377,14 @@ class ExceptionData:
             if level == 1:
                 filename = frm.filename
                 prev_path = frm.filename
-                prev_file = os.path.basename(frm.filename)
+                prev_file = Path(frm.filename).name
             else:
                 if prev_path == frm.filename:
                     filename = prev_file
                 else:
                     filename = frm.filename
                     prev_path = frm.filename
-                    prev_file = os.path.basename(frm.filename)
+                    prev_file = Path(frm.filename).name
             method = frm.line if frm.line else ""
             stack_frame = StackFrame(
                 level=level,
@@ -441,7 +437,7 @@ class MessageData:
     def to_envelope(self, tags: PropertiesT = None) -> Envelope:
         return Envelope(
             name=Envelope.TRACE_NAME,
-            time=datetime.utcnow(),
+            time=datetime.now(UTC),
             data=Data(self, Envelope.TRACE_BASE_TYPE),
             tags=tags,
         )
@@ -468,7 +464,7 @@ class MetricData:
     def to_envelope(self, tags: PropertiesT = None) -> Envelope:
         return Envelope(
             name=Envelope.METRIC_NAME,
-            time=datetime.utcnow(),
+            time=datetime.now(UTC),
             data=Data(self, Envelope.METRIC_BASE_TYPE),
             tags=tags,
         )
@@ -537,7 +533,7 @@ class RemoteDependencyData:
     def to_envelope(self, tags: PropertiesT = None) -> Envelope:
         return Envelope(
             name=Envelope.DEPENDENCY_NAME,
-            time=datetime.utcnow(),
+            time=datetime.now(UTC),
             data=Data(self, Envelope.DEPENDENCY_BASE_TYPE),
             tags=tags,
         )
@@ -591,7 +587,7 @@ class RequestData:
     def to_envelope(self, tags: PropertiesT = None) -> Envelope:
         return Envelope(
             name=Envelope.REQUEST_NAME,
-            time=datetime.utcnow(),
+            time=datetime.now(UTC),
             data=Data(self, Envelope.REQUEST_BASE_TYPE),
             tags=tags,
         )

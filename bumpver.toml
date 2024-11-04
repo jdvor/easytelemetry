@@ -1,0 +1,19 @@
+[bumpver]
+current_version = "1.0.0"
+version_pattern = "MAJOR.MINOR.PATCH[PYTAGNUM]"
+commit_message = "version {old_version} -> {new_version}"
+commit = true
+tag = true
+tag_name = "v{new_version}"
+push = true
+
+[bumpver.file_patterns]
+"bumpver.toml" = [
+  '^current_version = "{version}"$',
+]
+"pyproject.toml" = [
+  '^version = "{pep440_version}"$',
+]
+"easytelemetry/__init__.py" = [
+  '^__version__ = "{pep440_version}"$',
+]

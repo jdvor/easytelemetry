@@ -1,0 +1,18 @@
+changelog:
+  exclude:
+    labels:
+      - "exclude for release"
+      - "automation"
+  categories:
+    - title: Breaking Changes
+      labels:
+        - "breaking change"
+    - title: New Features
+      labels:
+        - "feature"
+    - title: Bug Fixes
+      labels:
+        - "bug"
+    - title: Other Changes
+      labels:
+        - "*"

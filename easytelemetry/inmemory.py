@@ -1,16 +1,17 @@
 """
-This module contains in-memory implementation for the telemetry.
+Module contains in-memory implementation for the telemetry.
 It is useful for unit testing and NOT anywhere else where it would quickly
 lead to OOM, because the implementations collect indefinatelly the logs
 and metric entries unless explicitly told to clear them.
+Also, this module is ignored when calculating test code coverage.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, TypeAlias
+from datetime import UTC, datetime
+from typing import Any
 
 from easytelemetry import (
     Level,
@@ -30,6 +31,8 @@ from easytelemetry import (
 
 @dataclass(frozen=True)
 class LogEntry:
+    """Represents a single logging record."""
+
     time: datetime
     level: Level
     source: str
@@ -45,6 +48,8 @@ class LogEntry:
 
 
 class Metric:
+    """Collects measurements for a named metric."""
+
     def __init__(self, name: str, props: PropsT | None):
         self._name = name
         self._props = props
@@ -59,10 +64,10 @@ class Metric:
         return self._data
 
     def track(self, value: int | float) -> None:
-        self._data.append((datetime.utcnow(), value, None))
+        self._data.append((datetime.now(UTC), value, None))
 
     def track_extra(self, value: int | float, extra: PropsT) -> None:
-        self._data.append((datetime.utcnow(), value, extra))
+        self._data.append((datetime.now(UTC), value, extra))
 
     def clear(self) -> None:
         self._data.clear()
@@ -71,9 +76,9 @@ class Metric:
         return self._name
 
 
-MetricRecordT: TypeAlias = tuple[datetime, float, PropsT | None]
-LogPredFuncT: TypeAlias = Callable[[LogEntry], bool]
-MetricPredFuncT: TypeAlias = Callable[[Metric], bool]
+MetricRecordT = tuple[datetime, float, PropsT | None]
+LogPredFuncT = Callable[[LogEntry], bool]
+MetricPredFuncT = Callable[[Metric], bool]
 
 
 def build(
@@ -105,6 +110,8 @@ def build(
 
 
 class InMemoryTelemetry(Telemetry):
+    """Telemetry collecting data only in memory. It's usefull for testing."""
+
     def __init__(
         self,
         name: str,
@@ -153,11 +160,7 @@ class InMemoryTelemetry(Telemetry):
         lgr = self._loggers.get(name)
         if not lgr:
             lvl = level if level else self._min_level
-            extra = (
-                {**self._global_props, **props}
-                if props
-                else self._global_props
-            )
+            extra = {**self._global_props, **props} if props else self._global_props
             lgr = InMemoryLogger(name, lvl, extra, self._logs)
             self._loggers[name] = lgr
         return lgr
@@ -198,6 +201,7 @@ class InMemoryTelemetry(Telemetry):
         for m in self._metrics.values():
             m.clear()
 
+    # flake8: noqa: T201
     def print_data(self) -> None:
         print("--- Logs ---")
         for le in self._logs:
@@ -241,6 +245,8 @@ class InMemoryTelemetry(Telemetry):
 
 
 class InMemoryLogger(Logger):
+    """In memory variant of a logger."""
+
     def __init__(
         self,
         name: str,

@@ -7,6 +7,7 @@ from collections.abc import Callable, Generator, Sequence
 import concurrent.futures as cf
 from dataclasses import dataclass
 import os
+from pathlib import Path
 import platform
 import posixpath
 from queue import Empty, Queue
@@ -15,7 +16,7 @@ import tempfile
 import threading
 import time
 from types import TracebackType
-from typing import Any, Protocol, TypeAlias
+from typing import Any, Protocol
 
 from easytelemetry import (
     Level,
@@ -141,11 +142,12 @@ def ensure_local_storage(app_name: str) -> str:
         else [r"/home/LogFiles/Application", r"/var/log"]
     )
     for d in dirs:
-        if os.path.exists(d):
-            storage_dir = os.path.join(d, app_name)
-            if not os.path.exists(storage_dir):
-                os.mkdir(storage_dir)
-            return storage_dir
+        base_dir = Path(d)
+        if base_dir.exists():
+            storage_dir = base_dir / app_name
+            if not storage_dir.exists():
+                storage_dir.mkdir()
+            return str(storage_dir)
 
     return tempfile.mkdtemp(prefix=app_name)
 
@@ -168,13 +170,8 @@ class Options:
 
     CONNECTION_STRING_ENV_VAR = "APPLICATIONINSIGHTS_CONNECTION_STRING"
     LOCAL_STORAGE_ENV_VAR = "APPLICATIONINSIGHTS_LOCAL_STORAGE"
-    _ERRMSG_ENVVAR = (
-        "Application Insights connection string environment "
-        + "variable is not set"
-    )
-    _ERRMSG_STORAGE = (
-        "Application Insights local storage " + "directory does not exist"
-    )
+    _ERRMSG_ENVVAR = "Application Insights connection string environment " + "variable is not set"
+    _ERRMSG_STORAGE = "Application Insights local storage " + "directory does not exist"
 
     @staticmethod
     def from_env(app_name: str) -> Options:
@@ -213,7 +210,7 @@ class Options:
             case _:
                 use_local_storage = True
                 storage_path = str(use_local)
-                if not os.path.isdir(storage_path):
+                if not Path(storage_path).is_dir():
                     raise OSError(Options._ERRMSG_STORAGE)
 
         return Options(
@@ -223,7 +220,7 @@ class Options:
         )
 
 
-FlushT: TypeAlias = tuple[bool | None, list[Exception] | None]
+FlushT = tuple[bool | None, list[Exception] | None]
 
 
 class AppInsightsTelemetry(Telemetry):
@@ -306,11 +303,7 @@ class AppInsightsTelemetry(Telemetry):
     def describe(self) -> str:
         logger_names = [str(x) for x in self._loggers]
         metric_names = [str(x) for x in self._metrics]
-        pub = (
-            "no"
-            if self._publishing is None
-            else f"yes ({self._publishing.name})"
-        )
+        pub = "no" if self._publishing is None else f"yes ({self._publishing.name})"
         s = [
             f"name: {self._name}",
             f'loggers: {", ".join(logger_names)}',
@@ -326,9 +319,7 @@ class AppInsightsTelemetry(Telemetry):
     def start_publishing(self) -> None:
         if self._publishing is not None:
             return
-        self._publishing = threading.Timer(
-            interval=self._options.publish_interval_secs, function=self.flush
-        )
+        self._publishing = threading.Timer(interval=self._options.publish_interval_secs, function=self.flush)
         if self._options.use_atexit:
             atexit.register(self.stop_publishing)
         self._publishing.start()
@@ -353,11 +344,7 @@ class AppInsightsTelemetry(Telemetry):
                 return None, None
             results = self._publisher.publish(self._queue)
             success = all(x.success for x in results)
-            errors = (
-                None
-                if success
-                else [x.exception for x in results if x.exception is not None]
-            )
+            errors = None if success else [x.exception for x in results if x.exception is not None]
             return success, errors
         except RuntimeError as e:
             return False, [e]
@@ -531,9 +518,7 @@ class DefaultPublisher:
             self._owns_executor = False
         else:
             workers = (
-                options.max_publishing_workers
-                if options.max_publishing_workers
-                else min(8, (os.cpu_count() or 1) + 1)
+                options.max_publishing_workers if options.max_publishing_workers else min(8, (os.cpu_count() or 1) + 1)
             )
             self._executor = cf.ThreadPoolExecutor(max_workers=workers)
             self._owns_executor = True
@@ -596,7 +581,7 @@ def _create_batches(
             return
 
 
-EnvelopePredicateT: TypeAlias = Callable[[p.Envelope], bool]
+EnvelopePredicateT = Callable[[p.Envelope], bool]
 
 
 class MockPublisher:
@@ -634,7 +619,7 @@ class MockPublisher:
                 i += 1
             except Empty:
                 n = -(i // -self._batch_maxsize)
-                return [self._result_fn() for _ in range(0, n)]
+                return [self._result_fn() for _ in range(n)]
 
     def close(self) -> None:
         # no-op

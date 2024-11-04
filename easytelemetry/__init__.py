@@ -1,5 +1,5 @@
 """
-This module contains interfaces and utility methods deemed usefull
+Module contains interfaces and utility methods deemed useful
 for all further concrete implementations.
 """
 
@@ -16,15 +16,15 @@ import re
 import socket
 import time
 from types import TracebackType
-from typing import Any, TypeAlias, TypeVar
+from typing import Any, TypeVar
 import uuid
 
 
-PropsT: TypeAlias = dict[str, str | int | float | bool]
-MetricFuncT: TypeAlias = Callable[[int | float], None]
-MetricFuncWithPropsT: TypeAlias = Callable[[int | float, PropsT], None]
-MetricCtrFuncT: TypeAlias = Callable[[], None]
-MetricCtrFuncWithPropsT: TypeAlias = Callable[[PropsT], None]
+PropsT = dict[str, str | int | float | bool]
+MetricFuncT = Callable[[int | float], None]
+MetricFuncWithPropsT = Callable[[int | float, PropsT], None]
+MetricCtrFuncT = Callable[[], None]
+MetricCtrFuncWithPropsT = Callable[[PropsT], None]
 
 
 class Level(IntEnum):
@@ -62,9 +62,7 @@ class Telemetry(ABC):
     @property
     @abstractmethod
     def min_level(self) -> Level:
-        """
-        Minimal loggin level. Everything below this level is ignored.
-        """
+        """Minimal loggin level. Everything below this level is ignored."""
 
     @abstractmethod
     def logger(
@@ -250,7 +248,6 @@ class Activity:
     """
 
     def __init__(self, telemetry: Telemetry, name: str):
-        """ """
         self._name = name
         self._activity_id: uuid.UUID | None = None
         self._start: int = 0
@@ -338,6 +335,7 @@ class ReusableTimer:
 
     @property
     def elapsed_ns(self) -> int:
+        """Get elapsed time in nanoseconds."""
         if self._start <= 0:
             return 0
         if self._stop > 0 and self._stop > self._start:
@@ -347,9 +345,11 @@ class ReusableTimer:
 
     @property
     def elapsed_ms(self) -> int:
+        """Get elapsed time in miliseconds."""
         return int(self.elapsed_ns / 1000000)
 
     def start(self, props: PropsT | None = None) -> None:
+        """Start the timer."""
         if props is not None:
             self._props = props
         self._start = time.perf_counter_ns()
@@ -357,6 +357,7 @@ class ReusableTimer:
         self._published = False
 
     def stop(self) -> None:
+        """Stop the timer."""
         self._stop = time.perf_counter_ns()
         if not self._published and 0 < self._start < self._stop:
             self._metric_fn(self.elapsed_ms, self._props)
@@ -459,9 +460,7 @@ def get_app_version(app_name: str) -> str:
     environment variables. Returns '0.0.0.0' if it could not be determined.
     """
     return (
-        os.environ.get(f"{app_name.upper()}_APP_VERSION")
-        or os.environ.get("APP_VERSION")
-        or "0.0.0.0"  # noqa: S104
+        os.environ.get(f"{app_name.upper()}_APP_VERSION") or os.environ.get("APP_VERSION") or "0.0.0.0"  # noqa: S104
     )
 
 
@@ -514,12 +513,9 @@ class StdLoggingHandler(logging.Handler):
         self._telemetry = telemetry
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Emit the logging record."""
         (props, ex) = _parse_record(record)
-        logger = (
-            self._telemetry.root
-            if record.name == "root"
-            else self._telemetry.logger(record.name)
-        )
+        logger = self._telemetry.root if record.name == "root" else self._telemetry.logger(record.name)
         if ex is not None:
             level = std_logging_to_level(record.levelno)
             logger.exception(ex, level=level, **props)
@@ -539,6 +535,7 @@ class StdLoggingHandler(logging.Handler):
                     logger.info(record.msg, **props)
 
     def configure_std_logging(self, clear_handlers: bool = False) -> None:
+        """Configure standard logging handler."""
         logging.basicConfig(
             level=self.level,
             force=clear_handlers,
@@ -620,6 +617,5 @@ def merge_props(*args: PropsT | None) -> PropsT:
 
 
 def str_dict(props: PropsT) -> dict[str, str]:
-    """Convert dictionary values, which might be numbers and booleans
-    into strings."""
+    """Convert dictionary values, which might be numbers and booleans into strings."""
     return {k: str(v) for k, v in props.items()}

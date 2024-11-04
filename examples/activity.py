@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import threading
 
 from shared import ensure_env
@@ -17,16 +19,21 @@ def beta():
     return alpha()
 
 
-try:
-    with build("example") as telemetry:
-        telemetry: Telemetry
-        evt = threading.Event()
+def main():
+    try:
+        with build("example") as telemetry:
+            telemetry: Telemetry
+            evt = threading.Event()
 
-        with telemetry.activity("purchase") as act:
-            act.logger.info(f"{act.name} created", order_id="NY9584")
-            evt.wait(0.7)
-            act.logger.warn("product out of stock", sku="ACM7")
-            beta()
-except ZeroDivisionError:
-    # expected
-    pass
+            with telemetry.activity("purchase") as act:
+                act.logger.info(f"{act.name} created", order_id="NY9584")
+                evt.wait(0.7)
+                act.logger.warn("product out of stock", sku="ACM7")
+                beta()
+    except ZeroDivisionError:
+        # expected
+        pass
+
+
+if __name__ == "__main__":
+    main()

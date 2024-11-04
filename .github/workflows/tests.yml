@@ -1,0 +1,79 @@
+name: 'Tests'
+
+on:
+  push:
+    branches: ['master']
+    paths-ignore: ['**.md', '.editorconfig', '.gitignore', '.gitattributes', '.pre-commit-config.yaml']
+
+  pull_request:
+    branches: ['master']
+    paths-ignore: ['**.md', '.editorconfig', '.gitignore', '.gitattributes', '.pre-commit-config.yaml']
+
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.12'
+  POETRY_VERSION: '1.8.4'
+
+jobs:
+  tests:
+    name: 'Run Tests'
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # all history for all branches and tags
+          submodules: true
+
+      - name: Install python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install and configure Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: ${{ env.POETRY_VERSION }}
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Define a cache for the virtual environment based on the dependencies from lock file
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install project dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: Install the project
+        run: poetry install --no-interaction
+
+      - name: Check code style
+        run: poetry run poe codestyle
+
+      - name: Check type hints
+        run: poetry run poe type
+
+      - name: Check docstring conventions
+        run: poetry run poe docstyle
+
+      - name: Run all tests
+        run: poetry run poe citest
+
+      - name: Show test report
+        if: always()
+        uses: pmeier/pytest-results-action@main
+        with:
+          path: test-report-junit.xml
+          summary: true
+          display-options: fEX  # results included in the report; follows the same syntax as `pytest -r`
+          fail-on-empty: true
+          title: Test results

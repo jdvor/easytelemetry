@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from shared import ensure_env, stdout
 
 from easytelemetry import Telemetry
@@ -15,34 +17,39 @@ def configure(opts: Options) -> None:
     opts.debug = True
 
 
-with build("example", configure) as t:
-    t: Telemetry
+def main():
+    with build("example", configure) as t:
+        t: Telemetry
 
-    i = 0
-    loop = True
-    while loop:
-        i += 1
-        stdout(f"i: {i}")
+        i = 0
+        loop = True
+        while loop:
+            i += 1
+            stdout(f"i: {i}")
 
-        t.root.debug("debugging message %s", i)
-        myfunc1(t, i)
-        t.root.info(
-            "informational message %s with custom dimensions",
-            i,
-            orderno=i,
-            god="Amon Ra",
-        )
-        t.root.warn("warning message %s", i)
-        t.root.error("error message %s", i)
-        t.root.error(
-            "error message %s with custom dimensions",
-            i,
-            orderno=i,
-            god="Quetzalcoatl",
-        )
-        t.root.critical("critical message %s", i)
+            t.root.debug("debugging message %s", i)
+            myfunc1(t, i)
+            t.root.info(
+                "informational message %s with custom dimensions",
+                i,
+                orderno=i,
+                god="Amon Ra",
+            )
+            t.root.warn("warning message %s", i)
+            t.root.error("error message %s", i)
+            t.root.error(
+                "error message %s with custom dimensions",
+                i,
+                orderno=i,
+                god="Quetzalcoatl",
+            )
+            t.root.critical("critical message %s", i)
 
-        print()
-        cli_input = input("next? [Y/n]")
-        cli_input = cli_input.strip().lower()
-        loop = cli_input == "y" or cli_input == "" or cli_input == "yes"
+            print()
+            cli_input = input("next? [Y/n]")
+            cli_input = cli_input.strip().lower()
+            loop = cli_input == "y" or cli_input == "" or cli_input == "yes"
+
+
+if __name__ == "__main__":
+    main()

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import logging
 
 from shared import ensure_env
@@ -26,8 +28,13 @@ def configure(opts: Options) -> None:
     opts.clear_std_logging_handlers = True
 
 
-with build("example", configure=configure):
-    logging.info("message through standard logging 1")
-    logging.warning("warning through standard logging 1")
-    with_named_logger()
-    with_exception()
+def main():
+    with build("example", configure=configure):
+        logging.info("message through standard logging 1")
+        logging.warning("warning through standard logging 1")
+        with_named_logger()
+        with_exception()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from shared import ensure_env
 
 from easytelemetry import Telemetry
@@ -15,9 +17,14 @@ def beta():
     return alpha()
 
 
-with build("example") as t:
-    t: Telemetry
-    try:
-        beta()
-    except ZeroDivisionError as e:
-        t.root.exception(e, orderno=666, god="Quetzalcoatl")
+def main():
+    with build("example") as t:
+        t: Telemetry
+        try:
+            beta()
+        except ZeroDivisionError as e:
+            t.root.exception(e, orderno=666, god="Quetzalcoatl")
+
+
+if __name__ == "__main__":
+    main()

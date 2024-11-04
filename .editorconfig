@@ -1,20 +1,12 @@
 root = true
 
-[*]
-insert_final_newline = true
+[*.{py,rst,txt,md}]
+indent_style = space
 trim_trailing_whitespace = true
-end_of_line = lf
-charset = utf-8
-
-[*.py]
-indent_style = space
 indent_size = 4
-max_line_length = 79
+end_of_line = LF
 
-[*.{json,yml,toml,ini}]
+[*.{yml,toml}]
 indent_style = space
 indent_size = 2
-
-[Dockerfile]
-indent_style = space
-indent_size = 2
+end_of_line = LF

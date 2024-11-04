@@ -1,0 +1,52 @@
+fail_fast: true
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: end-of-file-fixer
+        exclude: ^.*\.egg-info/
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+      - id: debug-statements
+      - id: check-added-large-files
+  - repo: local
+    hooks:
+      - id: poetry-check
+        name: poetry check
+        description: Run poetry check
+        entry: poetry check
+        language: python
+        pass_filenames: false
+        files: ^(.*/)?pyproject.toml$
+      - id: poe-lint
+        name: poe lint
+        description: Run linter
+        entry: poe lint
+        language: python
+        types_or: [python]
+        require_serial: true
+        pass_filenames: false
+      - id: poe-style
+        name: poe style
+        description: Check code style
+        entry: poe style
+        language: python
+        types_or: [python]
+        pass_filenames: false
+      - id: poe-doc-style
+        name: poe docstyle
+        description: Check docstring conventions
+        entry: poe docstyle
+        language: python
+        types_or: [ python ]
+        pass_filenames: false
+      - id: poe-type
+        name: poe type
+        description: Check typing
+        entry: poe type
+        language: python
+        types_or: [python]
+        pass_filenames: false

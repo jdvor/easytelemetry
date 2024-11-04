@@ -13,9 +13,7 @@ from easytelemetry.appinsights import (
 
 
 def create_options() -> Options:
-    cs = ConnectionString(
-        instrumentation_key="00000000-0000-0000-0000-000000000000"
-    )
+    cs = ConnectionString(instrumentation_key="00000000-0000-0000-0000-000000000000")
     return Options(connection=cs, min_level=Level.DEBUG)
 
 

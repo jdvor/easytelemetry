@@ -26,7 +26,7 @@ and obtain connection string for the client.
 2) Set-up environment property `MYAPP_APPLICATION_INSIGHTS_CONNECTION_STRING`
 or `APPLICATION_INSIGHTS_CONNECTION_STRING`.
 
-3) Than:
+3) Then:
 ```python
 import time
 from easytelemetry.appinsights import build

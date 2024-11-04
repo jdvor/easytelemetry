@@ -45,9 +45,7 @@ def contains_prop(
     has_key = key in e.data.baseData.properties
     if not has_key:
         return False
-    return (
-        has_key if value is None else value == e.data.baseData.properties[key]
-    )
+    return has_key if value is None else value == e.data.baseData.properties[key]
 
 
 def contains_prop_keys(e: p.Envelope, *args: str) -> bool:

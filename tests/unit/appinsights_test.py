@@ -102,9 +102,7 @@ def test_activity_on_error(sut: Tuple[AppInsightsTelemetry, MockPublisher]):
 
 @pytest.mark.slow
 @pytest.mark.timeout(65)
-def test_publishing_by_timer(
-    sut: Tuple[AppInsightsTelemetry, MockPublisher]
-) -> None:
+def test_publishing_by_timer(sut: Tuple[AppInsightsTelemetry, MockPublisher]) -> None:
     ait, pub = sut
     max_elapsed = 60
     step = 0.3
