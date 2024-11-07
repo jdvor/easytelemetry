@@ -168,8 +168,8 @@ class Options:
     clear_std_logging_handlers: bool = False
     use_atexit: bool = False
 
-    CONNECTION_STRING_ENV_VAR = "APPLICATIONINSIGHTS_CONNECTION_STRING"
-    LOCAL_STORAGE_ENV_VAR = "APPLICATIONINSIGHTS_LOCAL_STORAGE"
+    CONNECTION_STRING_ENV_VAR = "APPLICATION_INSIGHTS_CONNECTION_STRING"
+    LOCAL_STORAGE_ENV_VAR = "APPLICATION_INSIGHTS_LOCAL_STORAGE"
     _ERRMSG_ENVVAR = "Application Insights connection string environment " + "variable is not set"
     _ERRMSG_STORAGE = "Application Insights local storage " + "directory does not exist"
 
