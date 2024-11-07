@@ -65,7 +65,18 @@ jobs:
       - name: Check docstring conventions
         run: poetry run poe docstyle
 
+      - name: Get application version
+        id: appver
+        run: |
+          APP_VERSION=$(poetry run bumpver show --no-fetch | grep -oP "(?<=Current Version: ).*")
+          echo "APP_VERSION=${APP_VERSION}" >> $GITHUB_ENV
+
       - name: Run all tests
+        env:
+          APPLICATION_INSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATION_INSIGHTS_CONNECTION_STRING }}
+          APP_VERSION: ${{ env.APP_VERSION }}
+          ENVIRONMENT: gh
+          COMPUTERNAME: gh01
         run: poetry run poe citest
 
       - name: Show test report

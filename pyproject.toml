@@ -37,7 +37,7 @@ ruff = "^0.4.4"
 types-requests = "^2.32.0.20241016"
 
 [tool.mypy]
-exclude = '^(tests|examples|benchmarks)/'
+exclude = '^(tests|examples|benchmarks|dist)/'
 python_version = "3.12"
 cache_dir = ".cache/mypy/"
 check_untyped_defs = true
